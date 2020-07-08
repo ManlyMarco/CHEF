@@ -263,3 +263,4 @@ __pycache__/
 # Sensitive App Config File
 .env
 ChefBot-ocr.json
+/CHEF/Properties/launchSettings.json

@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Linq;
 using System.Threading.Tasks;
 using CHEF.Components;
 using Discord;
 using Discord.WebSocket;
+using Google.Apis.Util;
 
 namespace CHEF
 {
@@ -11,14 +13,34 @@ namespace CHEF
         private DiscordSocketClient _client;
 
         public static void Main(string[] args)
-            => new CHEF().MainAsync().GetAwaiter().GetResult();
-
-        private async Task MainAsync()
         {
-            await SetupBotLogin();
+            if (args.Length < 1)
+            {
+                Console.WriteLine("Error: No bot token was passed in arguments");
+                return;
+            }
+
+            var token = args.Last();
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                Console.WriteLine("Error: No bot token was passed in arguments");
+                return;
+            }
+
+            new CHEF().MainAsync(token).GetAwaiter().GetResult();
+        }
+
+        private async Task MainAsync(string token)
+        {
+            var config = new DiscordSocketConfig { MessageCacheSize = 100 };
+            _client = new DiscordSocketClient(config);
+            _client.Log += Log;
 
             _client.Ready += InitOnClientReady;
             _client.Ready += UniqueInitOnClientReady;
+
+            await _client.LoginAsync(TokenType.Bot, token);
+            await _client.StartAsync();
 
             await Task.Delay(-1);
         }
@@ -26,6 +48,7 @@ namespace CHEF
         private async Task InitOnClientReady()
         {
             Logger.Init(_client);
+            Logger.Log("Robot Chikarin is starting up!");
             await Task.CompletedTask;
         }
 
@@ -34,16 +57,6 @@ namespace CHEF
             Database.Init();
             await ComponentHandler.Init(_client);
             _client.Ready -= UniqueInitOnClientReady;
-        }
-
-        private async Task SetupBotLogin()
-        {
-            var config = new DiscordSocketConfig { MessageCacheSize = 100 };
-            _client = new DiscordSocketClient(config);
-            _client.Log += Log;
-
-            await _client.LoginAsync(TokenType.Bot, Environment.GetEnvironmentVariable("DISCORD_TOKEN"));
-            await _client.StartAsync();
         }
 
         private static Task Log(LogMessage msg)

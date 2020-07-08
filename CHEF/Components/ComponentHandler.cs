@@ -27,7 +27,7 @@ namespace CHEF.Components
                 catch (Exception e)
                 {
                     Logger.Log($"Exception while trying to enable {componentType.Name} {Environment.NewLine} {e}");
-                    throw;
+                    //throw;
                 }
             }
         }

@@ -25,12 +25,7 @@ namespace CHEF.Components.Watcher
 
         internal async Task<string> Try(SocketMessage msg)
         {
-            if (msg is SocketUserMessage &&
-                msg.Channel is SocketTextChannel &&
-                !msg.Author.IsBot &&
-                !msg.Author.IsWebhook &&
-                msg.Channel.Name.Equals("tech-support") &&
-                msg.Attachments.Count == 1)
+            if (msg.Attachments.Count == 1)
             {
                 var attachment = msg.Attachments.First();
                 {

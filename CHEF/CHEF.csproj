@@ -4,6 +4,7 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp2.1</TargetFramework>
     <LangVersion>latest</LangVersion>
+    <StartupObject>CHEF.CHEF</StartupObject>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -14,6 +15,14 @@
     <Content Include="../Docker/**"> 
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory> 
     </Content> 
+  </ItemGroup>
+  
+  <ItemGroup>
+    <Compile Remove="Components\CloudVisionOcr.cs" />
+    <Compile Remove="Components\Commands\CommandHandler.cs" />
+    <Compile Remove="Components\Commands\Info.cs" />
+    <Compile Remove="Components\Commands\PermissionSystem.cs" />
+    <Compile Remove="Components\Watcher\ImageParser.cs" />
   </ItemGroup>
   
   <ItemGroup>
@@ -28,6 +37,18 @@
     </PackageReference>
     <PackageReference Include="Npgsql" Version="4.1.3.1" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="3.1.4" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <None Include="Components\CloudVisionOcr.cs" />
+    <None Include="Components\Commands\CommandHandler.cs" />
+    <None Include="Components\Commands\Info.cs" />
+    <None Include="Components\Commands\PermissionSystem.cs" />
+    <None Include="Components\Watcher\ImageParser.cs" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <Folder Include="Migrations\" />
   </ItemGroup>
 
 </Project>

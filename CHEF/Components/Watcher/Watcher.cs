@@ -211,16 +211,22 @@ namespace CHEF.Components.Watcher
 
                     // Check for exceptions
                     var allLogs = textsToProcess.Aggregate(string.Empty, (s1, s2) => s1 + s2);
-                    var exceptions = Regex.Matches(allLogs, "[\\w\\.]*Exception:.+(\\r?\\n.*)?(\\r?\\n *at .*)+");
+                    var exceptions = Regex.Matches(allLogs, @"[^\]\n]*Exception.*(\r?\n.*)?(((\r?\n *at .*)+)|((\r?\n\w+ .*\))+))");
                     if (exceptions.Count > 0)
                     {
-                        var exceptionStrings = exceptions.Select(x => x.Value)
-                            .GroupBy(s => s, StringComparer.Ordinal).ToList();
+                        string CleanUpException(string exc)
+                        {
+                            exc = exc.Replace("\r\n", "\n").Trim();
+                            exc = Regex.Replace(exc, @"\n(Stack trace:)?\n", "\n", RegexOptions.Multiline);
+                            return exc;
+                        }
+
+                        var exceptionStrings = exceptions.Select(x => x.Value).Select(CleanUpException).GroupBy(s => s, StringComparer.Ordinal).ToList();
 
                         await channel.SendMessageAsync(
-                            $"Found {exceptionStrings.Sum(gr => gr.Count())} exceptions (crashes) in attached log files ({exceptionStrings.Count} are unique). Showing the least common exceptions below.");
+                            $"Found {exceptionStrings.Sum(gr => gr.Count())} instances of {exceptionStrings.Count} kinds of exceptions in attached log files. Showing the least common exceptions below.");
 
-                        string CleanUpException(string exc)
+                        string PrettyUpException(string exc)
                         {
                             // Trim away useless  [0x00000] in <filename unknown>:0  at the end
                             exc = Regex.Replace(exc, " *\\[\\dx\\d+.+$", string.Empty, RegexOptions.Multiline);
@@ -229,7 +235,7 @@ namespace CHEF.Components.Watcher
 
                         var exceptionOutputStrings = exceptionStrings
                             .OrderBy(x => x.Count()) // Show single exceptions first
-                            .Select(gr => $"Thrown {gr.Count()} times - {CleanUpException(gr.Key)}").ToList();
+                            .Select(gr => $"Thrown {gr.Count()} times - {PrettyUpException(gr.Key)}").ToList();
 
                         var totalLength = 0;
                         await channel.SendMessageAsync(

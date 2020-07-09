@@ -41,7 +41,7 @@ namespace CHEF
 
             try
             {
-                if (msg.Contains("Exception")) msg = $"```as\n{msg}```";
+                if (log.Contains("Exception", StringComparison.OrdinalIgnoreCase)) log = $"```as\n{log}```";
                 Task.Run(async () => { await _reportTo.SendMessageAsync(log); });
             }
             catch (Exception ex)

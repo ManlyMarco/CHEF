@@ -89,7 +89,7 @@ namespace CHEF.Components.Watcher
 
             if (text != null && Contains("loading ["))
             {
-                var outdatedMods = new List<string>();
+                var outdatedMods = new HashSet<string>();
 
                 const string regexFindVer = "Loading \\[(.*?) ([0-9].*?)]";
                 var rx = new Regex(regexFindVer,

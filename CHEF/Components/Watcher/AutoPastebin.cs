@@ -27,7 +27,7 @@ namespace CHEF.Components.Watcher
 
         internal async Task<string> Try(string fileContent)
         {
-            if (fileContent.Length >= 1000000) return string.Empty;
+            if (fileContent.Length >= 400000) return string.Empty;
 
             var pasteResult = await PostBin(fileContent);
 

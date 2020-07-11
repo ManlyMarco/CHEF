@@ -48,6 +48,7 @@ namespace CHEF
         private async Task InitOnClientReady()
         {
             Logger.Init(_client);
+            Logger.Log("OnClientReady");
             await Task.CompletedTask;
         }
 

@@ -37,7 +37,7 @@ namespace CHEF
 
             Console.WriteLine(log);
 
-            if (_reportTo == null) return;
+            if (_reportTo == null || msg.Contains(" Gateway ", StringComparison.Ordinal)) return;
 
             try
             {

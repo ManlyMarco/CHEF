@@ -25,7 +25,7 @@ namespace CHEF.Components.Watcher
                 if (Contains("Chainloader"))
                     listOfSins.Add("It looks like you have a very old version of BepInEx (older than v5.0). Please update your game and your mods (either manually or by installing the latest HF Patch).");
                 else
-                    listOfSins.Add("It looks like BepInEx is not starting. Try to restart your PC and run the game as administrator. If running as administrator helps then try to fix file permissions of your game folder (either manually or by running HF Patch).");
+                    listOfSins.Add($"It looks like BepInEx is not starting. If you didn't install any mods yet, get HF Patch (link in <#{Watcher.FaqsChannelId}>). If the mods worked before but suddently stopped, try to restart your PC and run the game as administrator. If running as administrator helps then try to fix file permissions of your game folder. If you are using a third-party antivirus, try to exclude your Koikatsu game directory in the andtivirus settings (you might need to reinstall HF Patch after doing this).");
             }
 
             var pathMatch = Regex.Match(text, "Platform assembly: (.+) \\(this message is harmless\\)");
@@ -38,9 +38,16 @@ namespace CHEF.Components.Watcher
                 if (gamePath.Any(c => c >= 128))
                     listOfSins.Add("Your game directory path contains non-ascii characters. This can cause serious issues. Move the game to a path that only uses English characters (for example `D:\\Games\\Koikatsu`).");
 
-                if (gamePath.Contains("FlashBangZ", StringComparison.OrdinalIgnoreCase))
-                    listOfSins.Add("It looks like you are using a FlashBangZ repack. It's strongly recommend that you remove it and download a fresh version of the game. His repacks have been caught to contain malware in the past, and they are known to be badly put together and have many issues. You can read more about it here <https://discordapp.com/channels/447114928785063977/447120583189331968/506923193454428182>.");
+                if (gamePath.Any(char.IsWhiteSpace) && text.Contains("Loading [VideoExport 1.1.0]", StringComparison.Ordinal))
+                    listOfSins.Add("Your game directory has spaces in its path. This can cause issues with the VideoExport plugin (failing to record). Move the game to a path with no spaces (for example `D:\\Games\\Koikatsu`) to avoid this issue.");
+
+                if (gamePath.StartsWith("c:\\windows", StringComparison.OrdinalIgnoreCase) || gamePath.StartsWith("C:\\ProgramData", StringComparison.OrdinalIgnoreCase) ||
+                   (gamePath.StartsWith("C:\\users", StringComparison.OrdinalIgnoreCase) && gamePath.Contains("AppData")))
+                    listOfSins.Add($"Your game seems to be installed to a dangerous or error-provoking directory ({gamePath}). This can cause serious issues. Move the game to a simple path like `D:\\Games\\Koikatsu` to avoid issues.");
             }
+
+            if (text.Contains("FlashBangZ", StringComparison.OrdinalIgnoreCase))
+                listOfSins.Add("It looks like you are using a FlashBangZ repack. It's strongly recommend that you remove it and download a fresh version of the game. Until you get rid of this repack you will be very unlikely to receive any help here, and any cards you post might be removed on sight. His repacks have been caught to contain malware in the past, and they are known to be badly put together and have many issues. You can read more about it here <https://discordapp.com/channels/447114928785063977/447120583189331968/506923193454428182>.");
 
             if (Regex.Matches(text, "Multiple versions detected, only").Count > 30)
                 listOfSins.Add("Your `mods` folder looks to be very messy and there are many duplicate mods. This can cause issues, please consider cleaning it up.");
@@ -67,6 +74,11 @@ namespace CHEF.Components.Watcher
             if (Contains("KoikPlugins.dll"))
             {
                 listOfSins.Add("Looks like you are using kPlug. This plugin frequently breaks some of the mods often used by the rest of the community. Katarsys, the creator of kPlug, refuses to work with other modders to make kPlug and other mods compatible with each other. If you want to get help you will either need to uninstall kPlug and ask again, read the included kPlug readme, or ask Katarsys for help.");
+            }
+
+            if (Contains("MPCharCtrl+PoseInfo.UpdateInfo("))
+            {
+                listOfSins.Add("Looks like one of your poses in `UserData\\Studio\\pose` might be corrupted. The pose list might be broken. Try removing some of the recently added poses.");
             }
 
             if (Contains("D3D11: Failed to create RenderTexture"))

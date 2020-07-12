@@ -141,6 +141,7 @@ namespace CHEF.Components.Watcher
                 }).ToList();
 
                 var textsToProcess = new List<string>();
+                var kkmanLog = string.Empty;
                 var listOfPastebins = new List<string>();
 
                 foreach (var textAttachment in textAttachments)
@@ -152,6 +153,8 @@ namespace CHEF.Components.Watcher
 
                     if (FileIsValidLogFile(textAttachment))
                         textsToProcess.Add(fileContent);
+                    else if (textAttachment.Filename.StartsWith("kkmanager", StringComparison.OrdinalIgnoreCase))
+                        kkmanLog = fileContent;
 
                     try
                     {
@@ -179,6 +182,12 @@ namespace CHEF.Components.Watcher
                 if (isHelp)
                 {
                     var listOfSins = new List<string>();
+
+                    if (!string.IsNullOrWhiteSpace(kkmanLog))
+                    {
+                        if(kkmanLog.Contains("Failed to parse update manifest file") && kkmanLog.Contains("at Updates KKManager.Updater.Data.UpdateInfo.Deserialize"))
+                            listOfSins.Add("Your KKManager might be outdated, which causes updates to fail. Check <https://github.com/IllusionMods/KKManager/releases/latest> for the latest version and update if necessary.");
+                    }
 
                     foreach (var textAttachment in textAttachments)
                     {
@@ -225,7 +234,7 @@ namespace CHEF.Components.Watcher
 
                     // Check for exceptions
                     var allLogs = textsToProcess.Aggregate(string.Empty, (s1, s2) => s1 + s2);
-                    var exceptions = Regex.Matches(allLogs, @"[^\]\n]*Exception.*(\r?\n.*)?(((\r?\n *at .*)+)|((\r?\n\w+ .*\))+))");
+                    var exceptions = Regex.Matches(allLogs, @"[^\]\n]*Exception.*(\r?\n.*)?(((\r?\n *at .*)+)|((\r?\n\w+.*\))+))");
                     if (exceptions.Count > 0)
                     {
                         string CleanUpException(string exc)

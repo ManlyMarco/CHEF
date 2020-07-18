@@ -2,16 +2,13 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using Discord.WebSocket;
 
 namespace CHEF.Components.Watcher
 {
     public static class CommonIssues
     {
-        public static void CheckCommonLogError(string text, List<string> listOfSins)
+        public static void CheckCommonLogError(string text, List<string> listOfSins, ref bool canBeSolvedWithHfpatch)
         {
             bool Contains(string testStr)
             {
@@ -23,9 +20,10 @@ namespace CHEF.Components.Watcher
             if (!Contains("] BepInEx 5."))
             {
                 if (Contains("Chainloader"))
-                    listOfSins.Add("It looks like you have a very old version of BepInEx (older than v5.0). Please update your game and your mods (either manually or by installing the latest HF Patch).");
+                    listOfSins.Add("It looks like you have a very old version of BepInEx (older than v5.0). Please update your game and your mods.");
                 else
-                    listOfSins.Add($"It looks like BepInEx is not starting. If you didn't install any mods yet, get HF Patch (link in <#{Watcher.FaqsChannelId}>). If the mods worked before but suddently stopped, try to restart your PC and run the game as administrator. If running as administrator helps then try to fix file permissions of your game folder. If you are using a third-party antivirus, try to exclude your Koikatsu game directory in the andtivirus settings (you might need to reinstall HF Patch after doing this).");
+                    listOfSins.Add($"It looks like BepInEx is not starting. If you didn't install any mods yet, get HF Patch (link in <#{Watcher.FaqsChannelId}>). If the mods worked before but suddently stopped, try to restart your PC and run the game as administrator. If running as administrator helps then try to fix file permissions of your game folder. If you are using a third-party antivirus, try to exclude your Koikatsu game directory in the andtivirus settings.");
+                canBeSolvedWithHfpatch = true;
             }
 
             var pathMatch = Regex.Match(text, "Platform assembly: (.+) \\(this message is harmless\\)");
@@ -47,10 +45,43 @@ namespace CHEF.Components.Watcher
             }
 
             if (text.Contains("FlashBangZ", StringComparison.OrdinalIgnoreCase))
-                listOfSins.Add("It looks like you are using a FlashBangZ repack. It's strongly recommend that you remove it and download a fresh version of the game. Until you get rid of this repack you will be very unlikely to receive any help here, and any cards you post might be removed on sight. His repacks have been caught to contain malware in the past, and they are known to be badly put together and have many issues. You can read more about it here <https://discordapp.com/channels/447114928785063977/447120583189331968/506923193454428182>.");
+                listOfSins.Add("It looks like you are using a FlashBangZ repack. It's strongly recommend that you remove it and download a fresh version of the game, or at least install the latest version of HF Patch. Until you get rid of this repack you will be very unlikely to receive any help here, and any cards you post might be removed on sight. His repacks have been caught to contain malware in the past, and they are known to be badly put together and have many issues. You can read more about it here <https://discordapp.com/channels/447114928785063977/447120583189331968/506923193454428182>.");
 
             if (Regex.Matches(text, "Multiple versions detected, only").Count > 30)
+            {
                 listOfSins.Add("Your `mods` folder looks to be very messy and there are many duplicate mods. This can cause issues, please consider cleaning it up.");
+                canBeSolvedWithHfpatch = true;
+            }
+
+            var loadFails = Regex.Matches(text, @"Could not load \[(.*)\] because it has missing dependencies: (.+) \((.*)\)");
+            if (loadFails.Any())
+            {
+                var loadFailsStrings = loadFails
+                    .Select(x => $"You need to install/update `{x.Groups[2].Value}` to {x.Groups[3].Value} because it is needed by `{x.Groups[1].Value}`")
+                    .Distinct()
+                    .OrderBy(x => x);
+                listOfSins.AddRange(loadFailsStrings);
+            }
+
+            var incompatibilities = Regex.Matches(text, @"Could not load \[(.*)\] because it is incompatible with: (.*)");
+            if (incompatibilities.Any())
+            {
+                var loadFailsStrings = incompatibilities
+                    .Select(x => $"You need to remove `{x.Groups[2].Value}` because it is incompatible with `{x.Groups[1].Value}`")
+                    .Distinct()
+                    .OrderBy(x => x);
+                listOfSins.AddRange(loadFailsStrings);
+            }
+
+            var typeloads = Regex.Matches(text, @"Exception: Could not load type '.+' from assembly '(.+), Version=");
+            if (typeloads.Any())
+            {
+                var typeloadStrings = typeloads
+                    .Select(x => x.Groups[1].Value + ".dll")
+                    .Distinct();
+                listOfSins.Add($"The following files failed to load: {string.Join(", ", typeloadStrings)}\nSome of these files are missing, corrupted or duplicated, which can cause other files to fail to load as well. This can cause plugins or even the game itself to crash or misbehave.");
+                canBeSolvedWithHfpatch = true;
+            }
 
             var pluginSkippedCount = Regex.Matches(text, "Skipping because a newer version exists ").Count;
             if (pluginSkippedCount > 0)
@@ -135,18 +166,9 @@ namespace CHEF.Components.Watcher
             return null;
         }
 
-        /// <summary>
-        /// Check for the <paramref name="modName"/> if <paramref name="otherVer"/> is the latest version.<para/>
-        /// Returns the latest version as a string, null if <paramref name="otherVer"/> is the latest.
-        /// </summary>
-        /// <param name="modName">Name of the mod to check</param>
-        /// <param name="otherVer">Text that should be equal to the mod version, outdated or not.</param>
-        /// <returns></returns>
-        private static Version IsThisLatestModVersion(string modName, Version otherVer)
-        {
-            // Can use regex to extract these from log: .+Loading \[(.*?) ([0-9].*?)\]
-            // then replace with: \{"$1" , new Version\("$2"\)\},
-            var versionDict = new Dictionary<string, Version>
+        // Can use regex to extract these from log: .+Loading \[(.*?) ([0-9].*?)\]
+        // then replace with: \{"$1" , new Version\("$2"\)\},
+        private static readonly Dictionary<string, Version> _versionDict = new Dictionary<string, Version>
             {
 {"Additional Skin Effects" , new Version("1.7.2")},
 {"Animation Overdrive" , new Version("1.1")},
@@ -270,9 +292,18 @@ namespace CHEF.Components.Watcher
 {"VideoExport" , new Version("1.1.0")},
 {"XUnity Auto Translator" , new Version("4.11.2")},
 {"XUnity Resource Redirector" , new Version("1.1.2")},
-            };
+        };
 
-            if (versionDict.TryGetValue(modName, out var ver) && ver > otherVer)
+        /// <summary>
+        /// Check for the <paramref name="modName"/> if <paramref name="otherVer"/> is the latest version.<para/>
+        /// Returns the latest version as a string, null if <paramref name="otherVer"/> is the latest.
+        /// </summary>
+        /// <param name="modName">Name of the mod to check</param>
+        /// <param name="otherVer">Text that should be equal to the mod version, outdated or not.</param>
+        /// <returns></returns>
+        private static Version IsThisLatestModVersion(string modName, Version otherVer)
+        {
+            if (_versionDict.TryGetValue(modName, out var ver) && ver > otherVer)
                 return ver;
 
             return null;

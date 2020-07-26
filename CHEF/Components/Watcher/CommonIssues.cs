@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using CHEF.Extensions;
 
 namespace CHEF.Components.Watcher
 {
@@ -17,19 +18,30 @@ namespace CHEF.Components.Watcher
 
             if (string.IsNullOrWhiteSpace(text)) return;
 
+            if (text.Contains("GfxDevice: creating device client; threaded=1\nCrash!!!\nSymInit"))
+            {
+                listOfSins.Add("The game is crashing immediately after initializing graphics." +
+                               "\n   A - If you are using any Citrix software, read this for a solution: <https://pastebin.com/KGYJKbrC>" +
+                               "\n   B - Update your GPU drivers. You might need to use Display Driver Uninstaller to clean up old drivers.");
+                return;
+            }
+
             if (!Contains("] BepInEx 5."))
             {
                 if (Contains("Chainloader"))
                     listOfSins.Add("It looks like you have a very old version of BepInEx (older than v5.0). Please update your game and your mods.");
                 else
-                    listOfSins.Add($"It looks like BepInEx is not starting. If you didn't install any mods yet, get HF Patch (link in <#{Watcher.FaqsChannelId}>). If the mods worked before but suddently stopped, try to restart your PC and run the game as administrator. If running as administrator helps then try to fix file permissions of your game folder. If you are using a third-party antivirus, try to exclude your Koikatsu game directory in the andtivirus settings.");
+                    listOfSins.Add($"It looks like BepInEx is not starting. Because of this no mods or plugins will load." +
+                                   $"\n   A - If you didn't install any mods yet, you will have to install BepInEx first." +
+                                   $"\n   B - If you tried to update BepInEx, make sure that you've downloaded the x64 version of BepInEx." +
+                                   $"\n   C - If the mods worked before but suddently stopped, try to restart your PC and run the game as administrator. If running as administrator helps then try to fix file permissions of your game folder. If you are using a third-party antivirus, try to exclude your Koikatsu game directory in the andtivirus settings and check if no files were quaranteened.");
                 canBeSolvedWithHfpatch = true;
             }
 
             var pathMatch = Regex.Match(text, "Platform assembly: (.+) \\(this message is harmless\\)");
             if (pathMatch.Success)
             {
-                var gamePath = Path.GetDirectoryName(pathMatch.Captures.Last().Value);
+                var gamePath = Path.GetDirectoryName(pathMatch.Groups[1].TrimmedValue());
                 if (gamePath.Length > 130)
                     listOfSins.Add("Your game directory path is too long. This can cause serious issues. Move the game folder closer to the root of your hard drive (for example `D:\\Games\\Koikatsu`).");
 
@@ -53,11 +65,17 @@ namespace CHEF.Components.Watcher
                 canBeSolvedWithHfpatch = true;
             }
 
-            var loadFails = Regex.Matches(text, @"Could not load \[(.*)\] because it has missing dependencies: (.+) \((.*)\)");
+            var loadFails = Regex.Matches(text, @"Could not load \[(.*)\] because it has missing dependencies: (.+) ?\(?(.*)\)?");
             if (loadFails.Any())
             {
                 var loadFailsStrings = loadFails
-                    .Select(x => $"You need to install/update `{x.Groups[2].Value}` to {x.Groups[3].Value} because it is needed by `{x.Groups[1].Value}`")
+                    .Select(x =>
+                    {
+                        var versionStr = x.Groups[3].TrimmedValue();
+                        return string.IsNullOrWhiteSpace(versionStr) ?
+                            $"You need to install `{x.Groups[2].TrimmedValue()}` because it is needed by `{x.Groups[1].TrimmedValue()}`" :
+                            $"You need to install/update `{x.Groups[2].TrimmedValue()}` to {versionStr} because it is needed by `{x.Groups[1].TrimmedValue()}`";
+                    })
                     .Distinct()
                     .OrderBy(x => x);
                 listOfSins.AddRange(loadFailsStrings);
@@ -67,17 +85,45 @@ namespace CHEF.Components.Watcher
             if (incompatibilities.Any())
             {
                 var loadFailsStrings = incompatibilities
-                    .Select(x => $"You need to remove `{x.Groups[2].Value}` because it is incompatible with `{x.Groups[1].Value}`")
+                    .Select(x => $"You need to remove `{x.Groups[2].TrimmedValue()}` because it is incompatible with `{x.Groups[1].TrimmedValue()}`")
                     .Distinct()
                     .OrderBy(x => x);
                 listOfSins.AddRange(loadFailsStrings);
+            }
+
+            var plugsForWrongGames = Regex.Matches(text, @"] because of process filters \((.*)\)");
+            var otherGameNames = plugsForWrongGames.Select(x => x.Groups[1].TrimmedValue())
+                .Where(x => !_acceptableProcessNames.Any(x.Contains))
+                .SelectMany(x => x.Split(',')).Select(y => y.Trim())
+                .Distinct()
+                .ToList();
+            if (otherGameNames.Any())
+            {
+                listOfSins.Add($"It looks like you have plugins for a different game installed ({string.Join(", ", otherGameNames.OrderBy(x => x))}). This can cause plugins or even the game itself to crash or misbehave. Remove all plugins that are not meant to be used in Koikatsu and try again.");
+                canBeSolvedWithHfpatch = true;
+            }
+
+            var wrongBepinVersions = Regex.Matches(text, @"Plugin \[(.*)\] targets a wrong version of BepInEx \((.*)\)");
+            if (wrongBepinVersions.Any())
+            {
+                var minAcceptableVersion = new Version(5, 0, 0, 0);
+                var wrongVersions = wrongBepinVersions
+                    .Select(x => new { plug = x.Groups[1].TrimmedValue(), ver = x.Groups[2].TrimmedValue() })
+                    .Attempt(x => new { x.plug, ver = new Version(x.ver) });
+
+                foreach (var wrongVersion in wrongVersions)
+                {
+                    listOfSins.Add(wrongVersion.ver >= minAcceptableVersion
+                        ? $"Plugin [{wrongVersion.plug}] requires a newer version of BepInEx ({wrongVersion.ver}). It might misbehave until you update BepInEx."
+                        : $"Plugin [{wrongVersion.plug}] is for an old version of BepInEx ({wrongVersion.ver}). It will not work properly and is likely to break random things until it is removed. If you want to use it, place it directly inside your `BepInEx` folder and make sure you have the latest version of BepInEx.BepIn4Patcher.");
+                }
             }
 
             var typeloads = Regex.Matches(text, @"Exception: Could not load type '.+' from assembly '(.+), Version=");
             if (typeloads.Any())
             {
                 var typeloadStrings = typeloads
-                    .Select(x => x.Groups[1].Value + ".dll")
+                    .Select(x => x.Groups[1].TrimmedValue() + ".dll")
                     .Distinct();
                 listOfSins.Add($"The following files failed to load: {string.Join(", ", typeloadStrings)}\nSome of these files are missing, corrupted or duplicated, which can cause other files to fail to load as well. This can cause plugins or even the game itself to crash or misbehave.");
                 canBeSolvedWithHfpatch = true;
@@ -90,10 +136,10 @@ namespace CHEF.Components.Watcher
             var memAmount = Regex.Match(text, "Processor:.+RAM: (\\d+)MB");
             if (memAmount.Success)
             {
-                var memCount = int.Parse(memAmount.Groups[1].Value);
+                var memCount = int.Parse(memAmount.Groups[1].TrimmedValue());
                 if (memCount < 6000)
                 {
-                    listOfSins.Add($"You have only {Math.Round(memCount / 1024m)}MB of RAM. To work without issues at least 6 GB of RAM is recommended.");
+                    listOfSins.Add($"You have only {Math.Round(memCount / 1024m)}GB of RAM. At least 6 GB of RAM is recommended. The game might randomly crash, hang or load very slowly. You can prevent these issues by closing other applications, reducing number of characters, turning off high-poly mode and lowering screenshot quality.");
                 }
             }
 
@@ -105,6 +151,16 @@ namespace CHEF.Components.Watcher
             if (Contains("KoikPlugins.dll"))
             {
                 listOfSins.Add("Looks like you are using kPlug. This plugin frequently breaks some of the mods often used by the rest of the community. Katarsys, the creator of kPlug, refuses to work with other modders to make kPlug and other mods compatible with each other. If you want to get help you will either need to uninstall kPlug and ask again, read the included kPlug readme, or ask Katarsys for help.");
+            }
+
+            if (Contains("KK_VMDPlayEyeTextureCachePlugin"))
+            {
+                listOfSins.Add("Looks like you have the KKVMDPlayEyeTextureCache plugin. It can cause issues like missing eyes or incorrectly loaded faces in studio. To fix these issues delete `BepInEx\\plugins\\KKVMDPlayEyeTextureCache.dll`.");
+            }
+
+            if (Contains(@"BepInEx\Stiletto.dll"))
+            {
+                listOfSins.Add("Looks like you are using an old version of Stiletto for BepInEx 4. This will cause issues. Please update to the latest version of Stiletto. Make sure to remove the old version!");
             }
 
             if (Contains("MPCharCtrl+PoseInfo.UpdateInfo("))
@@ -293,6 +349,8 @@ namespace CHEF.Components.Watcher
 {"XUnity Auto Translator" , new Version("4.11.2")},
 {"XUnity Resource Redirector" , new Version("1.1.2")},
         };
+
+        private static readonly string[] _acceptableProcessNames = { "Koikatu", "Koikatsu Party", "KoikatuVR", "Koikatsu Party VR", "CharaStudio" };
 
         /// <summary>
         /// Check for the <paramref name="modName"/> if <paramref name="otherVer"/> is the latest version.<para/>

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using CHEF.Extensions;
 using Discord;
@@ -130,7 +131,7 @@ namespace CHEF.Components.Watcher
 
                 if (content == "chikahelp" || msg.MentionedUsers.Any(x => x.Id == Client.CurrentUser.Id))
                     await channel.SendMessageAsync(
-                        $"{msg.Author.Mention} Hello!\nI **will{(canBeHelped != true ? " not" : "")}** automatically try to help when you post a question or send your output_log.txt.\nHere are my commands:\nnohelp - I will no longer try to help you (default for Counsellors)\nyeshelp - I will resume trying to help you\ngivelog - Show instructions on how to get the output_log.txt file.");
+                        $"{msg.Author.Mention} Hello!\nI **will{(canBeHelped != true ? " not" : "")}** automatically try to help when you post a question or send your output_log.txt.\nHere are my commands:\nnohelp - I will no longer try to help you (default for Counsellors)\nyeshelp - I will resume trying to help you\ngivelog - Show instructions on how to get the output_log.txt file\ngood bot - Mark my last reply as useful\nbad bot - Mark my last reply as needing improvement");
             }
 
             // Vanity stuff
@@ -181,7 +182,7 @@ namespace CHEF.Components.Watcher
                 try
                 {
                     var cleanFileContent = CleanUpLogForPastebin(fileContent);
-                    var pasteBinUrl = await _autoPastebin.Try(cleanFileContent);
+                    var pasteBinUrl = await _autoPastebin.Try(cleanFileContent).WithTimeout(TimeSpan.FromSeconds(3), CancellationToken.None);
                     if (!string.IsNullOrWhiteSpace(pasteBinUrl))
                         listOfPastebins.Add($"Pastebin link for {(fileContent.Length > cleanFileContent.Length ? "cleaned " : "")}{textAttachment}: {pasteBinUrl}");
                 }

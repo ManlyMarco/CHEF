@@ -42,7 +42,12 @@ namespace CHEF.Components.Watcher
             if (pathMatch.Success)
             {
                 var gamePath = Path.GetDirectoryName(pathMatch.Groups[1].TrimmedValue());
-                if (gamePath.Length > 130)
+
+                if (gamePath.Contains(@"\Program Files (x86)\", StringComparison.Ordinal))
+                    listOfSins.Add("It looks like your game is installed to `Program Files (x86)`. This can cause serious issues with game data and prevent the game from working properly. Move the game folder out of Program Files. (for example `D:\\Games\\Koikatsu`).");
+                else if (gamePath.Contains(@"\Program Files\", StringComparison.Ordinal))
+                    listOfSins.Add("It looks like your game is installed to `Program Files`. This can cause issues in some cases. It's recommended to move the game folder out of Program Files. (for example `D:\\Games\\Koikatsu`).");
+                else if (gamePath.Length > 130)
                     listOfSins.Add("Your game directory path is too long. This can cause serious issues. Move the game folder closer to the root of your hard drive (for example `D:\\Games\\Koikatsu`).");
 
                 if (gamePath.Any(c => c >= 128))
@@ -338,7 +343,6 @@ namespace CHEF.Components.Watcher
 {"Studio Save Workspace Order Fix" , new Version("20.5.15.0")},
 {"Studio Scene Loaded Sound" , new Version("1.1")},
 {"Studio Text Plugin" , new Version("20.4.27.0")},
-{"StudioSceneSettings" , new Version("1.1.1")},
 {"Subtitles" , new Version("1.5.1")},
 {"Text Resource Redirector" , new Version("1.2.3")},
 {"Title shortcuts" , new Version("1.1.1")},

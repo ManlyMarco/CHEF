@@ -29,7 +29,7 @@ namespace CHEF.Components.Watcher
             if (!Contains("] BepInEx 5."))
             {
                 if (Contains("Chainloader"))
-                    listOfSins.Add("It looks like you have a very old version of BepInEx (older than v5.0). Please update your game and your mods.");
+                    listOfSins.Add("It looks like you have a very old version of BepInEx (older than v5.0). If you try to use any recent plugins your game will be likely crash or become unstable. Please update your game and your mods to the latest versions.");
                 else
                     listOfSins.Add($"It looks like BepInEx is not starting. Because of this no mods or plugins will load." +
                                    $"\n   A - If you didn't install any mods yet, you will have to install BepInEx first." +
@@ -39,15 +39,22 @@ namespace CHEF.Components.Watcher
             }
 
             var pathMatch = Regex.Match(text, "Platform assembly: (.+) \\(this message is harmless\\)");
+            string gamePath = string.Empty;
             if (pathMatch.Success)
             {
-                var gamePath = Path.GetDirectoryName(pathMatch.Groups[1].TrimmedValue());
+                gamePath = Path.GetDirectoryName(pathMatch.Groups[1].TrimmedValue()).Replace('/', '\\');
+                if (gamePath.EndsWith("\\Managed"))
+                    gamePath = Path.GetDirectoryName(Path.GetDirectoryName(gamePath));
 
-                if (gamePath.Contains(@"\Program Files (x86)\", StringComparison.Ordinal))
-                    listOfSins.Add("It looks like your game is installed to `Program Files (x86)`. This can cause serious issues with game data and prevent the game from working properly. Move the game folder out of Program Files. (for example `D:\\Games\\Koikatsu`).");
-                else if (gamePath.Contains(@"\Program Files\", StringComparison.Ordinal))
-                    listOfSins.Add("It looks like your game is installed to `Program Files`. This can cause issues in some cases. It's recommended to move the game folder out of Program Files. (for example `D:\\Games\\Koikatsu`).");
-                else if (gamePath.Length > 130)
+                if (!gamePath.Contains(@"\steamapps\", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (gamePath.Contains(@"\Program Files (x86)\", StringComparison.Ordinal))
+                        listOfSins.Add("It looks like your game is installed to `Program Files (x86)`. This can cause serious issues with game data and prevent the game from working properly. Move the game folder out of Program Files. (for example `D:\\Games\\Koikatsu`).");
+                    else if (gamePath.Contains(@"\Program Files\", StringComparison.Ordinal))
+                        listOfSins.Add("It looks like your game is installed to `Program Files`. This can cause issues in some cases. It's recommended to move the game folder out of Program Files. (for example `D:\\Games\\Koikatsu`).");
+                }
+
+                if (gamePath.Length > 110)
                     listOfSins.Add("Your game directory path is too long. This can cause serious issues. Move the game folder closer to the root of your hard drive (for example `D:\\Games\\Koikatsu`).");
 
                 if (gamePath.Any(c => c >= 128))
@@ -59,6 +66,17 @@ namespace CHEF.Components.Watcher
                 if (gamePath.StartsWith("c:\\windows", StringComparison.OrdinalIgnoreCase) || gamePath.StartsWith("C:\\ProgramData", StringComparison.OrdinalIgnoreCase) ||
                    (gamePath.StartsWith("C:\\users", StringComparison.OrdinalIgnoreCase) && gamePath.Contains("AppData")))
                     listOfSins.Add($"Your game seems to be installed to a dangerous or error-provoking directory ({gamePath}). This can cause serious issues. Move the game to a simple path like `D:\\Games\\Koikatsu` to avoid issues.");
+            }
+
+            var bundleLoadErrors = Regex.Matches(text, @"\[Warning:XUnity\.ResourceRedirector\] Tried to load non-existing asset bundle: (.+)");
+            if (bundleLoadErrors.Count > 0)
+            {
+                var filteredBundleErrors = bundleLoadErrors
+                    .Select(x => x.Groups[1].TrimmedValue().Replace('/', '\\'))
+                    .Attempt(Path.GetFullPath)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Select(x => x.Replace(gamePath, string.Empty, StringComparison.OrdinalIgnoreCase));
+                listOfSins.Add($"It looks like some of your game files are missing or corrupted. You might have to reinstall the game. Here are (some of) the missing files: `{string.Join("`, `", filteredBundleErrors)}`");
             }
 
             if (text.Contains("FlashBangZ", StringComparison.OrdinalIgnoreCase))
@@ -89,8 +107,14 @@ namespace CHEF.Components.Watcher
             var incompatibilities = Regex.Matches(text, @"Could not load \[(.*)\] because it is incompatible with: (.*)");
             if (incompatibilities.Any())
             {
-                var loadFailsStrings = incompatibilities
-                    .Select(x => $"You need to remove `{x.Groups[2].TrimmedValue()}` because it is incompatible with `{x.Groups[1].TrimmedValue()}`")
+                var filtered = incompatibilities.Select(x => new
+                { conflictor = x.Groups[2].TrimmedValue(), victim = x.Groups[1].TrimmedValue() }).ToList();
+
+                if (filtered.Any(x => x.victim.StartsWith("Text Dump")))
+                    listOfSins.Add("You have the `Text Dump` plugin installed. It's meant to only be used by translators. If you don't need it you should remove it.");
+
+                var loadFailsStrings = filtered
+                    .Select(x => $"You need to remove `{x.conflictor}` because it is incompatible with `{x.victim}`")
                     .Distinct()
                     .OrderBy(x => x);
                 listOfSins.AddRange(loadFailsStrings);
@@ -124,6 +148,9 @@ namespace CHEF.Components.Watcher
                 }
             }
 
+            if (Contains("MissingMethodException: Method not found: 'HarmonyLib.Harmony.PatchAll'"))
+                listOfSins.Add("It looks like your BepInEx might be outdated, and because of this some plugins are crashing. Please update BepInEx to the latest version and try again.");
+
             var typeloads = Regex.Matches(text, @"Exception: Could not load type '.+' from assembly '(.+), Version=");
             if (typeloads.Any())
             {
@@ -134,9 +161,13 @@ namespace CHEF.Components.Watcher
                 canBeSolvedWithHfpatch = true;
             }
 
-            var pluginSkippedCount = Regex.Matches(text, "Skipping because a newer version exists ").Count;
-            if (pluginSkippedCount > 0)
-                listOfSins.Add("It looks like you have duplicated plugin dlls in your `BepInEx\\plugins` directory. This might cause some issues, please consider removing the duplicates.");
+            var dupedPlugins = Regex.Matches(text, @"Skipping because a newer version exists \[(.+)\]");
+            if (dupedPlugins.Count > 0)
+            {
+                listOfSins.Add($"It looks like you have duplicated plugin dlls in your `BepInEx\\plugins` directory. " +
+                               $"This might cause some issues, please consider removing the duplicates. " +
+                               $"Affected plugins: `{string.Join("`, `", dupedPlugins.Select(x => x.Groups[1].TrimmedValue()))}`");
+            }
 
             var memAmount = Regex.Match(text, "Processor:.+RAM: (\\d+)MB");
             if (memAmount.Success)
@@ -177,14 +208,34 @@ namespace CHEF.Components.Watcher
             {
                 listOfSins.Add("You might be running out of VRAM / RAM, or your GPU or GPU drivers might be having issues.");
             }
+
+            if (Contains("**** Crash! ****"))
+            {
+                listOfSins.Add("The game hard-crashed. This is usually caused by running out of RAM, outdated/bad drivers, other software, or corrupted game files (mods/plugins are usually NOT the cause). You can try the following:" +
+                               "\n    A - Make sure that you have at least 4GB of free RAM (the more the better). Close all other applications to free up memory and avoid conflicts." +
+                               "\n    B - If the game crashed in story mode, reduce the amount of students in school (slider at top right of the class roster) and/or turn off the High poly mode in plugin settings." +
+                               "\n    C - If the game crashed when taking a screenshot (pressing the F9 / F11 key), reduce screenshot quality in plugin settings (make sure upsampling is at most at 2x)." +
+                               "\n    D - Run Windows Update and update your GPU drivers. You might need to clean old drivers with DDU first." +
+                               "\n    E - Scan your HDD for errors and check if it's not dying with a SMART tool. If the drive is fine, reinstall the game to a new directory, and only move over your old UserData folder.");
+            }
+
+            if (Contains("Mismatched serialization in the builtin class") || Regex.IsMatch(text, @"^The file 'archive:/CAB-[^']+' is corrupted! Remove it and launch unity again!"))
+            {
+                listOfSins.Add("It looks like some of the game files are corrupted." +
+                               "\n    A - Reinstall the game to a new empty directory (move your old UserData folder over to keep all cards and progress)." +
+                               "\n    B - If the game worked fine before and you didn't change anything, there's a good chance your hard drive is dying. Check if your hard drive is in good health, and scan it for errors (google is your friend)." +
+                               "\n    C - If the game never worked correctly, make sure that the game and patch installation files are not corrupted. Redownload them if necessary or in doubt.");
+            }
         }
 
         /// <summary>
         /// Check if the <paramref name="text"/> contains version numbers of mods<para/>
         /// Returns true if the text contains any outdated mods
         /// </summary>
-        /// /// <param name="text">Text that may or may not contains mod version numbers</param>
-        public static string CheckModsVersion(string text)
+        /// ///
+        /// <param name="text">Text that may or may not contains mod version numbers</param>
+        /// <param name="listOfSins"></param>
+        public static void CheckModsVersion(string text, List<string> listOfSins)
         {
             bool Contains(string testStr)
             {
@@ -204,7 +255,7 @@ namespace CHEF.Components.Watcher
                 {
                     if (match.Groups.Count > 2)
                     {
-                        var modName = match.Groups[1].ToString();
+                        var modName = match.Groups[1].ToString().Trim();
                         var verFromText = match.Groups[2].ToString().Replace(" ", "");
                         //Logger.Log("modName : " + modName);
                         //Logger.Log("verFromText : " + verFromText);
@@ -218,13 +269,11 @@ namespace CHEF.Components.Watcher
 
                 if (outdatedMods.Count > 0)
                 {
-                    return outdatedMods.Count < 15
-                        ? $"These plugins are old and should be updated: {string.Join("; ", outdatedMods)}"
-                        : "A lot of plugins are old and need to be updated. Either manually update everything or install latest HF Patch.";
+                    listOfSins.Add(outdatedMods.Count < 10
+                        ? $"There are some old plugins, updating them might fix some issues. Plugins: {string.Join("; ", outdatedMods)}"
+                        : "A lot of plugins are old, updating them might fix some issues. You can use HF Patch to update everything: <https://github.com/ManlyMarco/KK-HF_Patch/releases/latest>");
                 }
             }
-
-            return null;
         }
 
         // Can use regex to extract these from log: .+Loading \[(.*?) ([0-9].*?)\]
@@ -245,7 +294,6 @@ namespace CHEF.Components.Watcher
 {"Character List Optimizations" , new Version("1.12")},
 {"Character Maker Loaded Sound" , new Version("1.0")},
 {"CharacterRandomizer" , new Version("1.0.0")},
-{"Chase Me" , new Version("0.9.0")},
 {"Cheat Tools" , new Version("2.7")},
 {"Clothes Overlay Mod" , new Version("5.1.2")},
 {"Clothing State Menu" , new Version("3.0")},
@@ -256,7 +304,6 @@ namespace CHEF.Components.Watcher
 {"Configuration Manager wrapper for Koikatsu" , new Version("14.1")},
 {"Configuration Manager" , new Version("16.0")},
 {"DefaultParamEditor" , new Version("1.1.0.136")},
-{"Demosaic" , new Version("1.1")},
 {"Drag & Drop" , new Version("1.2")},
 {"EnableResize" , new Version("1.4")},
 {"Expand Male Maker" , new Version("1.0")},
@@ -270,7 +317,6 @@ namespace CHEF.Components.Watcher
 {"Free H Random" , new Version("1.1.1")},
 {"Game and Studio Data Corruption Fixes" , new Version("13.2")},
 {"GamepadSupport.GamepadController" , new Version("1.0.1")},
-{"Graphics Settings" , new Version("1.1.0")},
 {"H Character Adjustment" , new Version("2.0")},
 {"Hair Accessory Customizer" , new Version("1.1.5")},
 {"Head Fix" , new Version("13.2")},
@@ -282,7 +328,6 @@ namespace CHEF.Components.Watcher
 {"Invalid Scene Protection" , new Version("13.2")},
 {"Invisible Body" , new Version("1.3.2")},
 {"Janitor Replacer" , new Version("1.5")},
-{"KK Uniform Uniforms" , new Version("1.0.0.5")},
 {"KKABMX (BonemodX)" , new Version("4.3")},
 {"KKPE" , new Version("2.11.1")},
 {"KKUS" , new Version("1.8.1")},
@@ -292,7 +337,6 @@ namespace CHEF.Components.Watcher
 {"KK_ClothesLoadOption" , new Version("0.2.1")},
 {"KK_CrossEye" , new Version("1.6")},
 {"KK_HCameraLight" , new Version("1.3")},
-{"KK_OrthographicCamera" , new Version("1.1.1")},
 {"KK_Pregnancy" , new Version("1.2")},
 {"KK_QuickAccessBox" , new Version("2.2")},
 {"KK_QuickLoadOption" , new Version("1.0")},
@@ -312,7 +356,6 @@ namespace CHEF.Components.Watcher
 {"Modding API" , new Version("1.12.2")},
 {"More Accessory Parents" , new Version("1.0")},
 {"MoreAccessories" , new Version("1.0.9")},
-{"Night Darkener" , new Version("1.1.1")},
 {"NodesConstraints" , new Version("1.1.0")},
 {"Null Checks" , new Version("13.2")},
 {"Party Card Compatibility" , new Version("13.2")},
@@ -325,8 +368,6 @@ namespace CHEF.Components.Watcher
 {"RealPov" , new Version("1.0.2.136")},
 {"Reload Character List On Change" , new Version("1.5.1")},
 {"Remove Cards To Recycle Bin" , new Version("1.1.1")},
-{"Resource Unload Optimizations" , new Version("13.2")},
-{"Runtime Unity Editor" , new Version("2.1")},
 {"Screenshot Manager" , new Version("14.1")},
 {"Settings Fix" , new Version("13.2")},
 {"Sideloader" , new Version("15.0")},

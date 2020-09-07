@@ -179,17 +179,18 @@ namespace CHEF.Components.Watcher
                 else if (textAttachment.Filename.StartsWith("kkmanager", StringComparison.OrdinalIgnoreCase))
                     kkmanLog = fileContent;
 
-                try
-                {
-                    var cleanFileContent = CleanUpLogForPastebin(fileContent);
-                    var pasteBinUrl = await _autoPastebin.Try(cleanFileContent).WithTimeout(TimeSpan.FromSeconds(3), CancellationToken.None);
-                    if (!string.IsNullOrWhiteSpace(pasteBinUrl))
-                        listOfPastebins.Add($"Pastebin link for {(fileContent.Length > cleanFileContent.Length ? "cleaned " : "")}{textAttachment}: {pasteBinUrl}");
-                }
-                catch (Exception e)
-                {
-                    Logger.Log($"Automatic pastebin for {msg.GetJumpUrl()} failed: {e}");
-                }
+                // todo reenable?
+                //try
+                //{
+                //    var cleanFileContent = CleanUpLogForPastebin(fileContent);
+                //    var pasteBinUrl = await _autoPastebin.Try(cleanFileContent).WithTimeout(TimeSpan.FromSeconds(3), CancellationToken.None);
+                //    if (!string.IsNullOrWhiteSpace(pasteBinUrl))
+                //        listOfPastebins.Add($"Pastebin link for {(fileContent.Length > cleanFileContent.Length ? "cleaned " : "")}{textAttachment}: {pasteBinUrl}");
+                //}
+                //catch (Exception e)
+                //{
+                //    Logger.Log($"Automatic pastebin for {msg.GetJumpUrl()} failed: {e}");
+                //}
             }
 
             if (listOfPastebins.Any())
@@ -251,9 +252,7 @@ namespace CHEF.Components.Watcher
                     {
                         CommonIssues.CheckCommonLogError(logText, listOfSins, ref canBeFixedWithHfpatch);
 
-                        var outdatedPlugsMsg = CommonIssues.CheckModsVersion(logText);
-                        if (!string.IsNullOrEmpty(outdatedPlugsMsg))
-                            listOfSins.Add(outdatedPlugsMsg);
+                        CommonIssues.CheckModsVersion(logText, listOfSins);
                     }
                     catch (Exception e)
                     {
@@ -289,8 +288,13 @@ namespace CHEF.Components.Watcher
                         .Select(gr => $"Thrown {gr.Count()} times - {PrettyUpException(gr.Key)}").ToList();
 
                     var totalLength = 0;
-                    await channel.SendMessageAsync(
-                        $"Found {exceptionStrings.Sum(gr => gr.Count())} exceptions in attached log files ({exceptionStrings.Count} are unique). Here are the least common exceptions:\n```\n{string.Join("``````\n", exceptionOutputStrings.TakeWhile(s => (totalLength += s.Length + 13) < 1500))}```");
+                    await channel.SendMessageAsync($"Found {exceptionStrings.Sum(gr => gr.Count())} exceptions in attached log files ({exceptionStrings.Count} are unique). Here are the least common exceptions:\n```\n{string.Join("``````\n", exceptionOutputStrings.TakeWhile(s => (totalLength += s.Length + 13) < 1500))}```");
+
+                    if (exceptions.Count > 400)
+                    {
+                        listOfSins.Add("It looks like something in your game is crashing on every frame. This can drastically reduce FPS and/or introduce stuttering/lag. This is usually caused by outdated or incompatible plugins/mods, and in rare cases by corrupted game files.");
+                        canBeFixedWithHfpatch = true;
+                    }
                 }
 
                 if (textAttachments.Count == 0)
@@ -302,12 +306,12 @@ namespace CHEF.Components.Watcher
                     else if (ContainsAny("blue") && (ContainsAny("characters", "ghost", "persons", "people") ||
                                                      ContainsAll("all", "girls")))
                     {
-                        listOfSins.Add(
-                            "The blue characters around the school are just random mobs to make the school feel less empty, similar to Persona 5. You can turn them off in plugin settings (F1 > Plugin settings > Search for `mob`).");
+                        listOfSins.Add("The blue characters around the school are just random mobs to make the school feel less empty, similar to Persona 5. You can turn them off in plugin settings (F1 > Plugin settings > Search for `mob`).");
                     }
                     else if (ContainsAll("how to send output_log"))
                     {
                         await channel.SendMessageAsync($"{msg.Author.Mention} {OutputLogHowToSend}");
+                        return;
                     }
 
                     if (listOfSins.Count == 0)
@@ -320,6 +324,7 @@ namespace CHEF.Components.Watcher
                             (ContainsAny("help", "won't start", "game", "studio") || hasImages))
                         {
                             await channel.SendMessageAsync($"{msg.Author.Mention} {OutputLogPleaseGive}");
+                            return;
                         }
                     }
                 }
@@ -346,7 +351,7 @@ namespace CHEF.Components.Watcher
 
                     if (canBeFixedWithHfpatch)
                         await channel.SendMessageAsync(
-                            $"It looks like some or all of your issues can be automatically fixed by installing HF Patch. Check the <#{FaqsChannelId}> channel for more info.");
+                            $"It looks like some or all of your issues can be automatically fixed by installing HF Patch. Check pinned messages in this channel or the <#{FaqsChannelId}> channel for download links and more info.");
 
                     return;
                 }
@@ -360,7 +365,7 @@ namespace CHEF.Components.Watcher
             }
 
             // Only be a smartass if nothing else triggered
-            if (ContainsAny("can i ask something?", "can someone help me?", "can anyone help me?"))
+            if (content.Length < 35 && ContainsAny("can i ask something?", "can someone help me?", "can anyone help me?"))
             {
                 await channel.SendMessageAsync($"{msg.Author.Mention} https://dontasktoask.com/");
             }
@@ -462,6 +467,12 @@ namespace CHEF.Components.Watcher
                 }
             }
 
+            if (ContainsAny("subtitle", "subs") && ContainsAny("missing", "disappear", "hf patch", "enable", "gone", "dont have", "don't have", "stopped work", "not work", "no longer"))
+                listOfSins.Add(
+                    "If you want to turn on subtitles during H-Scenes and/or chara maker:" +
+                    "\n    A - If the subtitles disappeared after installing HF Patch - you have to install HF Patch again and this time check the optional \"Subtitles\" plugin (it's off by default because the translations are very low quality)." +
+                    "\n    B - Go to the plugin settings and search for the \"Show Subtitles\" setting and turn it on. If the setting is missing, you need to install the KK_Subtitles plugin either by installing HF Patch or by installing it manually from here <https://github.com/DeathWeasel1337/KK_Plugins#subtitles>.");
+
             if (ContainsAll("overlay", "guide") && ContainsAll("any", "find"))
                 listOfSins.Add(
                     $"You can find guides for making overlays here <https://github.com/ManlyMarco/Illusion-Overlay-Mods/tree/master/Guide> and in the <#{GuidesChannelId}> channel.");
@@ -511,7 +522,8 @@ namespace CHEF.Components.Watcher
                     listOfSins.Add(
                         "If you want to trigger the Darkness scene in story mode: Take a non-virgin girl with the correct personality to the third floor door while there's no teacher nearby and interact with the icon next to one of the doors.");
                 }
-                else if (ContainsAny("where") && ContainsAny("place", "located", "location", "userdata", "installed", "store", "saved", "find", " put "))
+
+                if (ContainsAny("where") && ContainsAny("place", "located", "location", "userdata", "installed", "store", "saved", "find", " put "))
                 {
                     if (ContainsAny("game", "koikat", "studio", "install "))
                     {

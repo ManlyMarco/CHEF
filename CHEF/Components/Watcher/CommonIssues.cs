@@ -137,8 +137,7 @@ namespace CHEF.Components.Watcher
             {
                 var minAcceptableVersion = new Version(5, 0, 0, 0);
                 var wrongVersions = wrongBepinVersions
-                    .Select(x => new { plug = x.Groups[1].TrimmedValue(), ver = x.Groups[2].TrimmedValue() })
-                    .Attempt(x => new { x.plug, ver = new Version(x.ver) });
+                    .Attempt(x => new { plug = x.Groups[1].TrimmedValue(), ver = new Version(x.Groups[2].TrimmedValue()) });
 
                 foreach (var wrongVersion in wrongVersions)
                 {
@@ -148,7 +147,7 @@ namespace CHEF.Components.Watcher
                 }
             }
 
-            if (Contains("MissingMethodException: Method not found: 'HarmonyLib.Harmony.PatchAll'"))
+            if (Contains("MissingMethodException: Method not found: 'HarmonyLib.Harmony."))
                 listOfSins.Add("It looks like your BepInEx might be outdated, and because of this some plugins are crashing. Please update BepInEx to the latest version and try again.");
 
             var typeloads = Regex.Matches(text, @"Exception: Could not load type '.+' from assembly '(.+), Version=");
@@ -166,7 +165,7 @@ namespace CHEF.Components.Watcher
             {
                 listOfSins.Add($"It looks like you have duplicated plugin dlls in your `BepInEx\\plugins` directory. " +
                                $"This might cause some issues, please consider removing the duplicates. " +
-                               $"Affected plugins: `{string.Join("`, `", dupedPlugins.Select(x => x.Groups[1].TrimmedValue()))}`");
+                               $"Affected plugins: `{string.Join("`, `", dupedPlugins.Select(x => x.Groups[1].TrimmedValue()).Distinct())}`");
             }
 
             var memAmount = Regex.Match(text, "Processor:.+RAM: (\\d+)MB");

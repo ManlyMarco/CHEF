@@ -188,11 +188,6 @@ namespace CHEF.Components.Watcher
                 listOfSins.Add("Looks like you are using kPlug. This plugin frequently breaks some of the mods often used by the rest of the community. Katarsys, the creator of kPlug, refuses to work with other modders to make kPlug and other mods compatible with each other. If you want to get help you will either need to uninstall kPlug and ask again, read the included kPlug readme, or ask Katarsys for help.");
             }
 
-            if (Contains("KK_VMDPlayEyeTextureCachePlugin"))
-            {
-                listOfSins.Add("Looks like you have the KKVMDPlayEyeTextureCache plugin. It can cause issues like missing eyes or incorrectly loaded faces in studio. To fix these issues delete `BepInEx\\plugins\\KKVMDPlayEyeTextureCache.dll`.");
-            }
-
             if (Contains(@"BepInEx\Stiletto.dll"))
             {
                 listOfSins.Add("Looks like you are using an old version of Stiletto for BepInEx 4. This will cause issues. Please update to the latest version of Stiletto. Make sure to remove the old version!");

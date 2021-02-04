@@ -5,7 +5,6 @@ using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
 using System.Threading.Tasks;
 using CHEF.Extensions;
 using Discord;
@@ -262,8 +261,7 @@ namespace CHEF.Components.Watcher
 
                 // Check for exceptions
                 var allLogs = textsToProcess.Aggregate(string.Empty, (s1, s2) => s1 + s2);
-                var exceptions = Regex.Matches(allLogs,
-                    @"[^\]\n]*Exception.*(\n.*)?(((\n *at .*)+)|((\n\w+.*\))+))");
+                var exceptions = Regex.Matches(allLogs, @"[^\]\n]*Exception.*(\n.*)?(((\n *at .*)+)|((\n\w+.*\))+))");
                 if (exceptions.Count > 0)
                 {
                     string CleanUpException(string exc)
@@ -275,20 +273,22 @@ namespace CHEF.Components.Watcher
                         return exc;
                     }
 
-                    var exceptionStrings = exceptions.Select(x => CleanUpException(x.Value))
-                        .GroupBy(s => s, StringComparer.Ordinal).ToList();
+                    var prettyExceptions = exceptions
+                        .Select(x => CleanUpException(x.Value))
+                        .Where(x => !x.Contains("AccessTools.Method:"))
+                        .ToList();
+
+                    var uniqueExceptions = prettyExceptions
+                        .Distinct(StringComparer.Ordinal)
+                        .ToList();
 
                     string PrettyUpException(string exc)
                     {
                         return (exc.Length > 453 ? exc.Substring(0, 450) + "..." : exc);
                     }
 
-                    var exceptionOutputStrings = exceptionStrings
-                        .OrderBy(x => x.Count()) // Show single exceptions first
-                        .Select(gr => $"Thrown {gr.Count()} times - {PrettyUpException(gr.Key)}").ToList();
-
                     var totalLength = 0;
-                    await channel.SendMessageAsync($"Found {exceptionStrings.Sum(gr => gr.Count())} exceptions in attached log files ({exceptionStrings.Count} are unique). Here are the least common exceptions:\n```\n{string.Join("``````\n", exceptionOutputStrings.TakeWhile(s => (totalLength += s.Length + 13) < 1500))}```");
+                    await channel.SendMessageAsync($"Found {prettyExceptions.Count} exceptions in attached log files ({uniqueExceptions.Count} are unique). Here are the earliest exceptions:\n```\n{string.Join("``````\n", uniqueExceptions .Select(PrettyUpException).TakeWhile(s => (totalLength += s.Length + 13) < 1500))}```");
 
                     if (exceptions.Count > 400)
                     {

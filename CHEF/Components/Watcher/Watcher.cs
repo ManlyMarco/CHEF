@@ -79,7 +79,8 @@ namespace CHEF.Components.Watcher
                 return;
             }
 
-            var isHelp = channel.Name == "help";
+            var isTestChannel = channel.Name == "help-test";
+            var isHelp = isTestChannel || channel.Name == "help";
             var isOther = channel.Name == "mod-programming";
 
             if (!isHelp && !isOther) return;
@@ -132,6 +133,8 @@ namespace CHEF.Components.Watcher
                     await channel.SendMessageAsync(
                         $"{msg.Author.Mention} Hello!\nI **will{(canBeHelped != true ? " not" : "")}** automatically try to help when you post a question or send your output_log.txt.\nHere are my commands:\nnohelp - I will no longer try to help you (default for Counsellors)\nyeshelp - I will resume trying to help you\ngivelog - Show instructions on how to get the output_log.txt file\ngood bot - Mark my last reply as useful\nbad bot - Mark my last reply as needing improvement");
             }
+
+            if (isTestChannel) canBeHelped = true;
 
             // Vanity stuff
             if (content.Equals("chika", StringComparison.OrdinalIgnoreCase) ||

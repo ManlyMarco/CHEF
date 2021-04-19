@@ -262,36 +262,33 @@ namespace CHEF.Components.Watcher
                     }
                 }
 
+                static string CleanUpException(string exc)
+                {
+                    exc = exc.Trim();
+                    exc = Regex.Replace(exc, @"\n(Stack trace:)?\n", "\n", RegexOptions.Multiline);
+                    // Trim away useless [0x00000] in <filename unknown>:0 and <0x0001c> at the end
+                    exc = Regex.Replace(exc, @" *[\[<]\dx\d+.+$", string.Empty, RegexOptions.Multiline);
+                    return exc;
+                }
+
                 // Check for exceptions
                 var allLogs = textsToProcess.Aggregate(string.Empty, (s1, s2) => s1 + s2);
                 var exceptions = Regex.Matches(allLogs, @"[^\]\n]*Exception.*(\n.*)?(((\n *at .*)+)|((\n\w+.*\))+))");
-                if (exceptions.Count > 0)
+                var prettyExceptions = exceptions.Select(x => x.Value).Where(x =>
+                    !x.Contains("System.Exception and name PrepForRemoting", StringComparison.Ordinal) && !x.Contains("AccessTools.Method:")).Select(CleanUpException).ToList();
+                if (prettyExceptions.Count > 0)
                 {
-                    string CleanUpException(string exc)
-                    {
-                        exc = exc.Trim();
-                        exc = Regex.Replace(exc, @"\n(Stack trace:)?\n", "\n", RegexOptions.Multiline);
-                        // Trim away useless [0x00000] in <filename unknown>:0 and <0x0001c> at the end
-                        exc = Regex.Replace(exc, @" *[\[<]\dx\d+.+$", string.Empty, RegexOptions.Multiline);
-                        return exc;
-                    }
-
-                    var prettyExceptions = exceptions
-                        .Select(x => CleanUpException(x.Value))
-                        .Where(x => !x.Contains("AccessTools.Method:"))
-                        .ToList();
-
                     var uniqueExceptions = prettyExceptions
                         .Distinct(StringComparer.Ordinal)
                         .ToList();
 
-                    string PrettyUpException(string exc)
+                    static string ClampException(string exc)
                     {
                         return (exc.Length > 453 ? exc.Substring(0, 450) + "..." : exc);
                     }
 
                     var totalLength = 0;
-                    await channel.SendMessageAsync($"Found {prettyExceptions.Count} exceptions in attached log files ({uniqueExceptions.Count} are unique). Here are the earliest exceptions:\n```\n{string.Join("``````\n", uniqueExceptions .Select(PrettyUpException).TakeWhile(s => (totalLength += s.Length + 13) < 1500))}```");
+                    await channel.SendMessageAsync($"Found {prettyExceptions.Count} exceptions in attached log files ({uniqueExceptions.Count} are unique). Here are the earliest exceptions:\n```\n{string.Join("``````\n", uniqueExceptions.Select(ClampException).TakeWhile(s => (totalLength += s.Length + 13) < 1500))}```");
 
                     if (exceptions.Count > 400)
                     {
@@ -483,6 +480,14 @@ namespace CHEF.Components.Watcher
             if (ContainsAll("crash") && ContainsAny("card sav", "saving card"))
                 listOfSins.Add(
                     "If your game crashes when saving cards in maker, try to lower the card image upsamplng ratio to 1 (Press F1 > Click on Plugin Settings > Search for `screenshot` to find the setting).");
+
+            if (ContainsAll("black") && ContainsAny("title", "main menu"))
+                listOfSins.Add(
+                    "If your title screen turned black and the game is broken after Steam updated your game, you have to either install HF Patch v3.8 or newer, or roll back to a previous update (check pinned messages for more information).");
+
+            if (ContainsAll("shoulders") && ContainsAny("collapsed", "messed up", "broken", "injured", "wonky", "out of whack", "back to normal"))
+                listOfSins.Add(
+                    "Broken/drooping shoulders in character maker are caused by Stiletto. To fix: F1 > Plugin Settings > Disable Maker IK (uncheck) > Restart the game. If that doesn't work, go into Bepinex/plugins and delete the Stiletto.dll file.");
 
             if (ContainsAll("character", "missing") && ContainsAny("head", "clothes", "hair"))
                 listOfSins.Add(

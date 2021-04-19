@@ -26,6 +26,17 @@ namespace CHEF.Components.Watcher
                 return;
             }
 
+            if (text.ContainsAll(new[]{"Koikatsu Party VR",
+                "Failed to patch System.Void ChaControl::Initialize(System.Byte _sex, System.Boolean _hiPoly, UnityEngine.GameObject _objRoot, System.Int32 _id, System.Int32 _no, ChaFileControl _chaFile)"}, StringComparison.Ordinal))
+            {
+                listOfSins.Add("Looks like VR is crashing because you have the latest update from Steam. To fix this, either install HF Patch v3.9 or newer, or roll back to a previous update (check pinned messages for more information).");
+            }
+
+            if (Regex.IsMatch(text, @"Tried to load non-existing asset bundle: .*_Data/\.\./abdata/adv/.*unity3d"))
+            {
+                listOfSins.Add("Looks like some of your game files might be missing or corrupted. You might have to completely reinstall your game to fix this. Make sure to backup your UserData folder.");
+            }
+
             if (!Contains("] BepInEx 5."))
             {
                 if (Contains("Chainloader"))

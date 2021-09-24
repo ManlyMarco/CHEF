@@ -231,6 +231,9 @@ namespace CHEF.Components.Watcher
                                "\n    B - If the game worked fine before and you didn't change anything, there's a good chance your hard drive is dying. Check if your hard drive is in good health, and scan it for errors (google is your friend)." +
                                "\n    C - If the game never worked correctly, make sure that the game and patch installation files are not corrupted. Redownload them if necessary or in doubt.");
             }
+            
+            if (Contains("FileNotFoundException: Could not load file or assembly 'UnityEngine.CoreModule"))
+                listOfSins.Add("It looks like you have a KKS Plugin in your KK Plugin list. Please remove this plugin, known symptoms in an empty plugin menu in charastudio");
         }
 
         /// <summary>

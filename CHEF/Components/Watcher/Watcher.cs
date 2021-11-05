@@ -14,6 +14,7 @@ namespace CHEF.Components.Watcher
 {
     public class Watcher : Component
     {
+        private const string _canBeHelpedListFilename = "canbehelpedlist.txt";
         private static readonly HttpClient _httpClient = new HttpClient();
 
         private readonly AutoPastebin _autoPastebin;
@@ -27,6 +28,8 @@ namespace CHEF.Components.Watcher
 
         public override async Task SetupAsync()
         {
+            ReadCanHelpList();
+
             Client.MessageReceived += msg =>
             {
                 try
@@ -43,7 +46,44 @@ namespace CHEF.Components.Watcher
             await Task.CompletedTask;
         }
 
-        private static readonly Dictionary<ulong, bool?> _userCanBeHelped = new Dictionary<ulong, bool?>();
+        private static void ReadCanHelpList()
+        {
+            try
+            {
+                var fn = Path.GetFullPath(_canBeHelpedListFilename);
+                if (File.Exists(fn))
+                {
+                    Console.WriteLine($"Reading {fn}");
+                    _userCanBeHelped = File.ReadAllLines(fn).Select(x => x.Split(',', 2, StringSplitOptions.None)).Where(x => x.Length == 2 && !string.IsNullOrWhiteSpace(x[1])).ToDictionary(x => ulong.Parse(x[0]), x => bool.Parse(x[1]));
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Failed to read {_canBeHelpedListFilename} - {e}");
+            }
+        }
+
+        private static void WriteCanHelpList()
+        {
+            try
+            {
+                var fn = Path.GetFullPath(_canBeHelpedListFilename);
+                Console.WriteLine($"Writing {fn}");
+                File.WriteAllLines(fn, _userCanBeHelped.Select(x => x.Key + "," + x.Value));
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Failed to write {_canBeHelpedListFilename} - {e}");
+            }
+        }
+
+        private static void SetCanBeHelped(ulong userId, bool value)
+        {
+            _userCanBeHelped[userId] = value;
+            WriteCanHelpList();
+        }
+
+        private static Dictionary<ulong, bool> _userCanBeHelped = new Dictionary<ulong, bool>();
 
         private static readonly string OutputLogPleaseGive =
             "If you are getting crashes or other errors in the game, please send the `output_log.txt` file from the game directory, it will help us help you. Type `how to send output_log` if you need more info.";
@@ -59,6 +99,7 @@ namespace CHEF.Components.Watcher
         internal static readonly string ClassChatterChannelId = "447133555844448267";
         internal static readonly string CharaRequestsChannelId = "511308816886005764";
         internal static readonly string BotControlChannelId = "508984374600138763";
+        internal static readonly string HelpChannelId = "555528419442425883";
         private static readonly string[] _emotePeek = { "<:peeeek:588304197175214092>", "<:peeeek:730454944997441536>" };
         private static readonly string[] _emoteYay = { "<:nepyay:585938344136015884>", "<:nepyay:734048849618010164>" };
         private static readonly string[] _emoteCry = { "<:aquacri:447131902839619604>", "<:aquacri:734049329685200908>" };
@@ -73,15 +114,21 @@ namespace CHEF.Components.Watcher
         {
             if (smsg.Author.IsBot ||
                 smsg.Author.IsWebhook ||
-                !(smsg is SocketUserMessage msg) ||
-                !(smsg.Channel is SocketTextChannel channel))
+                !(smsg is SocketUserMessage msg))
+            {
+                return;
+            }
+
+            var channel = smsg.Channel;
+            var isDM = channel is SocketDMChannel;
+            if (channel is not SocketTextChannel && !isDM)
             {
                 return;
             }
 
             var isTestChannel = channel.Name == "help-test";
             var isHelp = isTestChannel || channel.Name == "help";
-            var isOther = channel.Name == "mod-programming";
+            var isOther = channel.Name == "mod-programming" || isDM;
 
             if (!isHelp && !isOther) return;
 
@@ -97,21 +144,21 @@ namespace CHEF.Components.Watcher
                 return testStrings.All(testStr => content.Contains(testStr, StringComparison.InvariantCultureIgnoreCase));
             }
 
-            bool? canBeHelped = null;
+            bool canBeHelped = false;
 
             // Process commands
             if (isHelp)
             {
                 if (content == "nohelp" || ContainsAny("i hate robots", "i hate bots", "i hate chika"))
                 {
-                    _userCanBeHelped[msg.Author.Id] = false;
+                    SetCanBeHelped(msg.Author.Id, false);
                     await channel.SendMessageAsync($"{msg.Author.Mention} I will no longer try to help you");
                     return;
                 }
 
                 if (content == "yeshelp")
                 {
-                    _userCanBeHelped[msg.Author.Id] = true;
+                    SetCanBeHelped(msg.Author.Id, true);
                     await channel.SendMessageAsync($"{msg.Author.Mention} I will try to help you again");
                     return;
                 }
@@ -122,11 +169,10 @@ namespace CHEF.Components.Watcher
                     return;
                 }
 
-                _userCanBeHelped.TryGetValue(msg.Author.Id, out canBeHelped);
-                if (!canBeHelped.HasValue)
+                if (!_userCanBeHelped.TryGetValue(msg.Author.Id, out canBeHelped))
                 {
                     canBeHelped = !UserIsCounselor(msg.Author as SocketGuildUser);
-                    _userCanBeHelped[msg.Author.Id] = canBeHelped;
+                    SetCanBeHelped(msg.Author.Id, canBeHelped);
                 }
 
                 if (content == "chikahelp" || msg.MentionedUsers.Any(x => x.Id == Client.CurrentUser.Id))
@@ -134,7 +180,7 @@ namespace CHEF.Components.Watcher
                         $"{msg.Author.Mention} Hello!\nI **will{(canBeHelped != true ? " not" : "")}** automatically try to help when you post a question or send your output_log.txt.\nHere are my commands:\nnohelp - I will no longer try to help you (default for Counsellors)\nyeshelp - I will resume trying to help you\ngivelog - Show instructions on how to get the output_log.txt file\ngood bot - Mark my last reply as useful\nbad bot - Mark my last reply as needing improvement");
             }
 
-            if (isTestChannel) canBeHelped = true;
+            if (isTestChannel || isDM) canBeHelped = true;
 
             // Vanity stuff
             if (content.Equals("chika", StringComparison.OrdinalIgnoreCase) ||
@@ -206,7 +252,7 @@ namespace CHEF.Components.Watcher
             }
 
             // try to find if we can help
-            if (isHelp)
+            if (isHelp || isDM)
             {
                 var listOfSins = new List<string>();
                 var canBeFixedWithHfpatch = false;
@@ -347,7 +393,9 @@ namespace CHEF.Components.Watcher
                 {
                     var m = await channel.SendMessageAsync(
                         $"{msg.Author.Mention} I found answers to some common issues that might be helpful to you:\n• {string.Join("\n• ", listOfSins)}");
-                    Logger.Log($"Tried to help [{msg.Author.Username}] in [{channel.Guild.Name}\\{channel.Name}] with {listOfSins.Count} hits - " + m.GetJumpUrl());
+
+                    var guildName = channel is SocketTextChannel stc ? stc.Guild.Name : ((SocketDMChannel)channel).Recipient.Username;
+                    Logger.Log($"Tried to help [{msg.Author.Username}] in [{guildName}\\{channel.Name}] with {listOfSins.Count} hits - " + m.GetJumpUrl());
 
                     if (canBeFixedWithHfpatch)
                         await channel.SendMessageAsync(
@@ -360,6 +408,12 @@ namespace CHEF.Components.Watcher
                     await channel.SendMessageAsync(
                         $"I couldn't find anything wrong in the attached log file(s). Say `bad bot` if I missed something important.");
                     Logger.Log($"Found nothing in log file(s) - " + msg.GetJumpUrl());
+                    return;
+                }
+                else if (isDM)
+                {
+                    await channel.SendMessageAsync(
+                        $"Please send a log file you want me to analyze. You can try asking some questions, but I'm unlikely to help you, it's better to ask in <#{HelpChannelId}> instead.");
                     return;
                 }
             }
@@ -458,6 +512,11 @@ namespace CHEF.Components.Watcher
                 return testStrings.All(testStr => text.Contains(testStr, StringComparison.InvariantCultureIgnoreCase));
             }
 
+            if (ContainsAll("how", "update", "kkmanager"))
+            {
+                listOfSins.Add($"If you have issues updating KKManager, check this guide <https://youtu.be/ceg2XXGNwcU>");
+            }
+
             if (ContainsAny("what is"))
             {
                 if (ContainsAny(" kkp") || ContainsAll("koikat", "party"))
@@ -496,6 +555,12 @@ namespace CHEF.Components.Watcher
             if (ContainsAll("trap", "penis") && ContainsAny("not", "issue", "disappe"))
                 listOfSins.Add(
                     "If peni$ of your trap character doesn't show in story mode try to turn off the Clothing state persistence setting (Press F1 > Click on Plugin Settings > Search for `skin effects` to find the setting).");
+            if (ContainsAny("PMX"))
+                listOfSins.Add(
+                    "PMX Exporter plugin is very outdated and will break the game if installed. Remove it to fix your issues. Additionally, we do not help with export plugins here because they have been severely abused in the past, so you're on your own in that regard.");
+            if (ContainsAll("stuck", "tpose"))
+                listOfSins.Add(
+                    "If you use the PMX Exporter plugin or any other export plugin, remove it and see if that fixes the issue. We can not give any more help with export plugins here.");
 
             if (ContainsAny("where", "how to", "howto", "how can", "how i can", "how do", "have link to", "have a link to"))
             {

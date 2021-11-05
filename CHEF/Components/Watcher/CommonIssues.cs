@@ -231,6 +231,16 @@ namespace CHEF.Components.Watcher
                                "\n    B - If the game worked fine before and you didn't change anything, there's a good chance your hard drive is dying. Check if your hard drive is in good health, and scan it for errors (google is your friend)." +
                                "\n    C - If the game never worked correctly, make sure that the game and patch installation files are not corrupted. Redownload them if necessary or in doubt.");
             }
+            
+            if (Regex.IsMatch(text, @"^\[Warning:XUnity\.ResourceRedirector\] Tried to load non-existing asset bundle: .+/KoikatsuSunshine_Data/\.\./abdata/communication/info_50\.unity3d"))
+            {
+                listOfSins.Add("It looks like some of the game files are corrupted. This is most likely because you have the broken 1029 game update, try installing the previous/next official game update or HF Patch.");
+            }
+            
+            if (Contains("FileNotFoundException: Could not load file or assembly 'UnityEngine.CoreModule"))
+            {
+                listOfSins.Add("You have plugins for a wrong game installed. This can cause many different issues and game crashes. Make sure all of your plugins are for the correct game, or reinstall latest HF Patch and let it remove all old plugins.");
+            }
         }
 
         /// <summary>

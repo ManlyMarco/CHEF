@@ -89,7 +89,7 @@ namespace CHEF.Components.Watcher
             "If you are getting crashes or other errors in the game, please send the `output_log.txt` file from the game directory, it will help us help you. Type `how to send output_log` if you need more info.";
 
         private static readonly string OutputLogHowToSend =
-            "output_log.txt should exist in your game's root directory (next to the Koikatsu exe). Simply drag this file over to discord to upload it. If the file is too large to upload then you can compress it, or restart your game and try to reproduce the issue as quickly as possible (this should produce a much smaller log file).\nIf you can't see `output_log.txt` in your game directory then your game might be outdated. In that case either use the latest HF Patch to update, or look for the `output_log.txt` file inside of the `_Data` folder of application you had issues with (e.g. in `CharaStudio_Data` if you had issues with studio).\nIf you can't find the game's root directory type `where is the game installed?` and I will help you.";
+            "output_log.txt should exist in your game's root directory (next to the Koikatsu exe). Simply drag this file over to discord to upload it. If the file is too large to upload then you can compress it, or restart your game and try to reproduce the issue as quickly as possible (this should produce a much smaller log file).\nIf you can't see `output_log.txt` in your game directory then your game might be outdated. In that case either use the latest HF Patch to update, or look for the `output_log.txt` file inside of the `_Data` folder of application you had issues with (e.g. in `CharaStudio_Data` if you had issues with studio). You can also click the 'Log' button in the plugin settings window.\nIf you can't find the game's root directory type `where is the game installed?` and I will help you.";
 
         private int _maxLogFileSize = 9 * 1024 * 1024;
         internal static readonly string FaqsChannelId = "520061230279294976";
@@ -358,6 +358,10 @@ namespace CHEF.Components.Watcher
                     {
                         await channel.SendMessageAsync($"{msg.Author.Mention} {OutputLogHowToSend}");
                         return;
+                    }
+                    else if (ContainsAll("slow") && ContainsAny("download", "update"))
+                    {
+                        listOfSins.Add("If you are experiencing slow downloads when updating modpacks through KKManager, it's most likely because a lot of people are trying to update at the same time. Try updating later. If only the last download is slow, it means one of the servers is overloaded, in that case you can try to restart the update so it picks a different server.");
                     }
 
                     if (listOfSins.Count == 0)

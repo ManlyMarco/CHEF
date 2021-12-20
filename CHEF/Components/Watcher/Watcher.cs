@@ -152,14 +152,14 @@ namespace CHEF.Components.Watcher
                 if (content == "nohelp" || ContainsAny("i hate robots", "i hate bots", "i hate chika"))
                 {
                     SetCanBeHelped(msg.Author.Id, false);
-                    await channel.SendMessageAsync($"{msg.Author.Mention} I will no longer try to help you");
+                    await msg.ReplyAsync($"I will no longer try to help you");
                     return;
                 }
 
                 if (content == "yeshelp")
                 {
                     SetCanBeHelped(msg.Author.Id, true);
-                    await channel.SendMessageAsync($"{msg.Author.Mention} I will try to help you again");
+                    await msg.ReplyAsync($"I will try to help you again");
                     return;
                 }
 
@@ -176,8 +176,7 @@ namespace CHEF.Components.Watcher
                 }
 
                 if (content == "chikahelp" || msg.MentionedUsers.Any(x => x.Id == Client.CurrentUser.Id))
-                    await channel.SendMessageAsync(
-                        $"{msg.Author.Mention} Hello!\nI **will{(canBeHelped != true ? " not" : "")}** automatically try to help when you post a question or send your output_log.txt.\nHere are my commands:\nnohelp - I will no longer try to help you (default for Counsellors)\nyeshelp - I will resume trying to help you\ngivelog - Show instructions on how to get the output_log.txt file\ngood bot - Mark my last reply as useful\nbad bot - Mark my last reply as needing improvement");
+                    await msg.ReplyAsync($"Hello!\nI **will{(canBeHelped != true ? " not" : "")}** automatically try to help when you post a question or send your output_log.txt.\nHere are my commands:\nnohelp - I will no longer try to help you (default for Counsellors)\nyeshelp - I will resume trying to help you\ngivelog - Show instructions on how to get the output_log.txt file\ngood bot - Mark my last reply as useful\nbad bot - Mark my last reply as needing improvement");
             }
 
             if (isTestChannel || isDM) canBeHelped = true;
@@ -356,7 +355,7 @@ namespace CHEF.Components.Watcher
                     }
                     else if (ContainsAll("how to send output_log"))
                     {
-                        await channel.SendMessageAsync($"{msg.Author.Mention} {OutputLogHowToSend}");
+                        await msg.ReplyAsync($"{OutputLogHowToSend}");
                         return;
                     }
                     else if (ContainsAll("slow") && ContainsAny("download", "update"))
@@ -373,7 +372,7 @@ namespace CHEF.Components.Watcher
                             ContainsAny("crash", "bug", "error", "issue") &&
                             (ContainsAny("help", "won't start", "game", "studio") || hasImages))
                         {
-                            await channel.SendMessageAsync($"{msg.Author.Mention} {OutputLogPleaseGive}");
+                            await msg.ReplyAsync($"{OutputLogPleaseGive}");
                             return;
                         }
                     }
@@ -395,8 +394,7 @@ namespace CHEF.Components.Watcher
 
                 if (listOfSins.Count > 0)
                 {
-                    var m = await channel.SendMessageAsync(
-                        $"{msg.Author.Mention} I found answers to some common issues that might be helpful to you:\n• {string.Join("\n• ", listOfSins)}");
+                    var m = await msg.ReplyAsync($"I found answers to some common issues that might be helpful to you:\n• {string.Join("\n• ", listOfSins)}");
 
                     var guildName = channel is SocketTextChannel stc ? stc.Guild.Name : ((SocketDMChannel)channel).Recipient.Username;
                     Logger.Log($"Tried to help [{msg.Author.Username}] in [{guildName}\\{channel.Name}] with {listOfSins.Count} hits - " + m.GetJumpUrl());
@@ -425,19 +423,17 @@ namespace CHEF.Components.Watcher
             // Only be a smartass if nothing else triggered
             if (content.Length < 35 && ContainsAny("can i ask something?", "can someone help me?", "can anyone help me?"))
             {
-                await channel.SendMessageAsync($"{msg.Author.Mention} https://dontasktoask.com/");
+                await msg.ReplyAsync($"https://dontasktoask.com/");
             }
 
             if (ContainsAny("flashbangz"))
             {
-                await channel.SendMessageAsync(
-                    $"{msg.Author.Mention} If you are using a FlashBangZ repack, it's strongly recommend that you remove it and download a fresh version of the game. Until you get rid of this repack you will be very unlikely to receive any help here, and any cards you post might be removed on sight. His repacks have been caught to contain malware in the past, and they are infamous for being riddled with issues. You can read more about it here <https://discordapp.com/channels/447114928785063977/447120583189331968/506923193454428182>.");
+                await msg.ReplyAsync($"If you are using a FlashBangZ repack, it's strongly recommend that you remove it and download a fresh version of the game. Until you get rid of this repack you will be very unlikely to receive any help here, and any cards you post might be removed on sight. His repacks have been caught to contain malware in the past, and they are infamous for being riddled with issues. You can read more about it here <https://discordapp.com/channels/447114928785063977/447120583189331968/506923193454428182>.");
             }
 
             if (ContainsAny("what is the meaning of life"))
             {
-                await channel.SendMessageAsync(
-                    $"{msg.Author.Mention} The meaning of life is to play Koikatsu and worship Chikarin");
+                await msg.ReplyAsync($"The meaning of life is to play Koikatsu and worship Chikarin");
             }
         }
 

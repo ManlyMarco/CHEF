@@ -32,7 +32,12 @@ namespace CHEF
 
         private async Task MainAsync(string token)
         {
-            var config = new DiscordSocketConfig { MessageCacheSize = 100 };
+            var config = new DiscordSocketConfig
+            {
+                MessageCacheSize = 100, 
+                GatewayIntents = GatewayIntents.DirectMessageReactions | GatewayIntents.DirectMessageTyping | GatewayIntents.DirectMessages | GatewayIntents.GuildMessages | GatewayIntents.GuildMessageTyping | GatewayIntents.GuildMessageReactions | GatewayIntents.Guilds,
+                LogLevel = LogSeverity.Info
+            };
             _client = new DiscordSocketClient(config);
             _client.Log += Log;
 

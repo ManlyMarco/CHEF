@@ -35,7 +35,7 @@ namespace CHEF
             var config = new DiscordSocketConfig
             {
                 MessageCacheSize = 100, 
-                GatewayIntents = GatewayIntents.DirectMessageReactions | GatewayIntents.DirectMessageTyping | GatewayIntents.DirectMessages | GatewayIntents.GuildMessages | GatewayIntents.GuildMessageTyping | GatewayIntents.GuildMessageReactions | GatewayIntents.Guilds,
+                GatewayIntents = GatewayIntents.DirectMessageReactions | GatewayIntents.DirectMessageTyping | GatewayIntents.DirectMessages | GatewayIntents.GuildMessages | GatewayIntents.GuildMessageTyping | GatewayIntents.GuildMessageReactions | GatewayIntents.Guilds | GatewayIntents.MessageContent,
                 LogLevel = LogSeverity.Info
             };
             _client = new DiscordSocketClient(config);

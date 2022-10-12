@@ -211,7 +211,7 @@ namespace CHEF.Components.Watcher
 
             if (Contains("D3D11: Failed to create RenderTexture"))
             {
-                listOfSins.Add("You might be running out of VRAM / RAM, or your GPU or GPU drivers might be having issues.");
+                listOfSins.Add("You might be running out of VRAM / RAM, or your GPU drivers might be having issues.");
             }
 
             if (Contains("**** Crash! ****"))

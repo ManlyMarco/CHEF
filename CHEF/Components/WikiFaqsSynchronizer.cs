@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Reactive.Concurrency;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -20,52 +21,22 @@ namespace CHEF.Components
 
         public override async Task SetupAsync()
         {
-            Client.MessageReceived += msg =>
-            {
-                try
-                {
-                    return MsgWatcherAsync(msg);
-                }
-                catch (Exception e)
-                {
-                    Logger.Log($"Failed to handle message {msg.GetJumpUrl()}\n{e}");
-                    return Task.CompletedTask;
-                }
-            };
+            WatchForCommandInControlChannel("syncfaq", ProcessSyncCommand, false);
 
             await Task.CompletedTask;
         }
 
-        private async Task MsgWatcherAsync(SocketMessage smsg)
+        private async Task ProcessSyncCommand(SocketUserMessage msg)
         {
-            var msg = smsg as SocketUserMessage;
-            var channel = msg?.Channel as SocketTextChannel;
-            if (channel == null) return;
-            if (msg.Author.IsBot || msg.Author.IsWebhook) return;
-
-            var parts = msg.Content.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length > 0 && parts[0] == "syncfaq")
+            try
             {
-                if (channel.Guild.Id == 560859356439117844UL && channel.Id == 730477794865184789UL ||
-                    channel.Guild.Id == 447114928785063977UL && channel.Id == 448958364764864522UL)
-                {
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            var whatif = parts.Length >= 4 && parts[3].Trim().ToLowerInvariant() == "whatif";
-                            await SyncFaqChannel(msg, ulong.Parse(parts[1].Trim('#')), new Uri(parts[2].Trim('<', '>', ' ')), whatif);
-                        }
-                        catch (Exception ex)
-                        {
-                            await msg.ReplyAsync("Sync failed: " + ex.Message);
-                        }
-                    });
-                }
-                else
-                {
-                    await msg.ReplyAsync("https://tenor.com/view/no-no-no-way-never-nuh-uh-gif-14500720");
-                }
+                var parts = msg.Content.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                var whatif = parts.Length >= 4 && parts[3].Trim().ToLowerInvariant() == "whatif";
+                await SyncFaqChannel(msg, ulong.Parse(parts[1].Trim('#')), new Uri(parts[2].Trim('<', '>', ' ')), whatif);
+            }
+            catch (Exception ex)
+            {
+                await msg.ReplyAsync("Sync failed: " + ex.Message);
             }
         }
 

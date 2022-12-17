@@ -22,7 +22,9 @@ namespace CHEF.Components
                     Logger.Log($"Enabling Component: {componentType.Name}");
 
                     var compInstance = (Component)Activator.CreateInstance(componentType, client);
+                    if (compInstance == null) throw new ArgumentNullException(nameof(compInstance));
                     await compInstance.SetupAsync();
+                    LoadedComponents.Add(compInstance);
                 }
                 catch (Exception e)
                 {
@@ -30,6 +32,14 @@ namespace CHEF.Components
                     //throw;
                 }
             }
+
+            AppDomain.CurrentDomain.ProcessExit += (sender, args) =>
+            {
+                foreach (var component in LoadedComponents)
+                {
+                    component.Dispose();
+                }
+            };
         }
 
         private static bool ComponentFilter(Type type)

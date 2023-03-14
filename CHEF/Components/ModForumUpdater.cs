@@ -102,7 +102,7 @@ namespace CHEF.Components
                         var i = mostRecentlyPostedReleaseLink.LastIndexOf(allReleaseLinks.Count > 1 ? "/releases/tag/" : "/releases", StringComparison.OrdinalIgnoreCase);
 
                         // No release links, probably only a repo link
-                        if (i < 0) continue;
+                        if (i < 0 || mostRecentlyPostedReleaseLink.Contains("KoikatuGameplayMods")) continue;
 
                         var latestReleseLink = mostRecentlyPostedReleaseLink.Substring(0, i) + "/releases/latest";
                         var actualLatestReleseLink = await GetFinalRedirect(latestReleseLink);

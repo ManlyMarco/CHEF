@@ -15,7 +15,7 @@ namespace CHEF.Components
         private Timer _timer;
 
         private bool _running;
-        private static Regex _githubRegex = new(@"(https://github\.com/\w+/\w+/releases(/tag/[\w\.,\d]+)?)", RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        private static Regex _githubRegex = new(@"(https://github\.com/\w+/\w+/releases(/tag/[\w\.\-,\d]+)?)", RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
 
         public ModForumUpdater(DiscordSocketClient client) : base(client) { }

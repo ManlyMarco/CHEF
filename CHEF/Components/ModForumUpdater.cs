@@ -77,6 +77,7 @@ namespace CHEF.Components
                                               .Where(c => c.Name == "mod-release-forum"))
                 {
                     var modForumThreads = (await channel.GetActiveThreadsAsync())
+                                          .Concat(await channel.GetPublicArchivedThreadsAsync())
                                           // For some reason all threads on the server get returned, not only threads in this channel, so they need to be filtered
                                           .Where(t => !t.IsLocked && t.ParentChannelId == channel.Id)
                                           .ToList();

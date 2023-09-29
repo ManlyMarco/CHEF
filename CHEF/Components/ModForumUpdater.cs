@@ -74,7 +74,7 @@ namespace CHEF.Components
 
                 foreach (var channel in Client.Guilds.SelectMany(g => g.Channels)
                                               .OfType<SocketForumChannel>()
-                                              .Where(c => c.Name == "mod-release-forum"))
+                                              .Where(c => c.Name.Contains("mod-release")))
                 {
                     var modForumThreads = (await channel.GetActiveThreadsAsync())
                                           .Concat(await channel.GetPublicArchivedThreadsAsync())

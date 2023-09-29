@@ -26,16 +26,16 @@
   </ItemGroup>
   
   <ItemGroup>
-    <PackageReference Include="Discord.Net" Version="3.8.1" />
-    <PackageReference Include="EFCore.NamingConventions" Version="1.1.0" />
-    <PackageReference Include="Google.Cloud.Vision.V1" Version="2.0.0" />
-    <PackageReference Include="Html2Markdown" Version="5.0.0.468" />
-    <PackageReference Include="HtmlAgilityPack" Version="1.11.39" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="3.1.7">
+    <PackageReference Include="Discord.Net" Version="3.12.0" />
+    <PackageReference Include="EFCore.NamingConventions" Version="5.0.2" />
+    <PackageReference Include="Google.Cloud.Vision.V1" Version="3.3.0" />
+    <PackageReference Include="Html2Markdown" Version="5.1.0.703" />
+    <PackageReference Include="HtmlAgilityPack" Version="1.11.53" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="3.1.32">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Npgsql" Version="4.1.4" />
+    <PackageReference Include="Npgsql" Version="7.0.6" />
   </ItemGroup>
   
   <ItemGroup>

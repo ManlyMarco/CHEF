@@ -202,7 +202,7 @@ namespace CHEF.Components.Watcher
             // Get attachment contents + pastebin
             var textAttachments = msg.Attachments.Where(x =>
             {
-                var fileType = Path.GetExtension(x.Url).ToLowerInvariant();
+                var fileType = Path.GetExtension(x.Url.Split('?')[0]).ToLowerInvariant();
                 return fileType == ".txt" || fileType == ".log" || fileType == ".cs" || fileType == ".md";
             }).ToList();
 

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
@@ -6,6 +7,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Discord;
+using Discord.Rest;
 using Discord.WebSocket;
 
 namespace CHEF.Components
@@ -17,6 +19,8 @@ namespace CHEF.Components
         private bool _running;
         private static Regex _githubRegex = new(@"(https://github\.com/\w+/\w+/releases(/tag/[\w\.\-,\d]+)?)", RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
+        // check for updates if the post has one of these tags
+        private static string[] _watchedTags = { "plugins", "Tools", "Mods/Plugin pack" };
 
         public ModForumUpdater(DiscordSocketClient client) : base(client) { }
 
@@ -76,12 +80,15 @@ namespace CHEF.Components
                                               .OfType<SocketForumChannel>()
                                               .Where(c => c.Name.Contains("mod-release")))
                 {
-                    var modForumThreads = (await channel.GetActiveThreadsAsync())
-                                          .Concat(await channel.GetPublicArchivedThreadsAsync())
+                    var watchedTagIds = channel.Tags
+                        .Where(tag => _watchedTags.Contains(tag.Name))
+                        .Select(tag => tag.Id);
+                    var modForumThreads = (await GetAllThreads(channel))
                                           // For some reason all threads on the server get returned, not only threads in this channel, so they need to be filtered
                                           .Where(t => !t.IsLocked && t.ParentChannelId == channel.Id)
+                                          .Where(t => watchedTagIds.Intersect(t.AppliedTags).Any())
                                           .ToList();
-
+                    
                     await Log($"[ModForumUpdater] Running update in channel [{channel.Name}], {modForumThreads.Count} forum threads to process");
 
                     foreach (var thread in modForumThreads)
@@ -134,6 +141,23 @@ namespace CHEF.Components
             {
                 _running = false;
             }
+        }
+        
+        private static async Task<List<RestThreadChannel>> GetAllThreads(SocketForumChannel channel)
+        {
+            var threads = (await channel.GetActiveThreadsAsync()).ToList();
+            // get the last 100 archived threads
+            var inactiveBatch = await channel
+                .GetPublicArchivedThreadsAsync(limit: 100, before: DateTimeOffset.UtcNow);
+            while (inactiveBatch.Count > 0)
+            {
+                threads.AddRange(inactiveBatch);
+                // get the last 100 threads archived before the oldest one in the previous batch
+                var lastArchiveTime = inactiveBatch.Min(thread => thread.ArchiveTimestamp);
+                inactiveBatch = await channel
+                    .GetPublicArchivedThreadsAsync(limit: 100, before: lastArchiveTime);
+            }
+            return threads;
         }
 
         // https://stackoverflow.com/a/28424940

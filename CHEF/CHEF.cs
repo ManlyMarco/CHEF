@@ -46,6 +46,8 @@ namespace CHEF
             await _client.LoginAsync(TokenType.Bot, token);
             await _client.StartAsync();
 
+            await _client.SetCustomStatusAsync("DM me your log file for a private reply!");
+
             await Task.Delay(-1);
         }
 

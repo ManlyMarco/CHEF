@@ -199,7 +199,7 @@ namespace CHEF.Components
                     catch (WebException ex)
                     {
                         // Handle redirects below. Needed for .NET Core because for some reason it throws on success
-                        if (ex.Message.Contains("302"))
+                        if (ex.Message.Contains("301") || ex.Message.Contains("302"))
                             resp = ex.Response;
                         else throw;
                     }

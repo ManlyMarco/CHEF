@@ -26,7 +26,7 @@ namespace CHEF.Components
 
         public override Task SetupAsync()
         {
-            _timer = new Timer(state => _ = UpdateModForumTask(null), null, TimeSpan.FromSeconds(10), TimeSpan.FromDays(1));
+            _timer = new Timer(state => _ = UpdateModForumTask(null), null, DateTime.Today.AddDays(1).AddHours(2) - DateTime.Now, TimeSpan.FromDays(1)); // Run at 2AM every day
 
             WatchForCommandInControlChannel("syncforum", ProcessSyncCommand, false);
 

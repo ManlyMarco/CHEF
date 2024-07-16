@@ -189,7 +189,7 @@ namespace CHEF.Components.Watcher
                 {
                     if (cpu.Contains("13700K") || cpu.Contains("13900K") || cpu.Contains("14700K") || cpu.Contains("14900K"))
                     {
-                        listOfSins.Add("You have a CPU with a hardware bug that causes random crashes and low VRAM errors. This is a known issue with Intel 13th and 14th gen CPUs (i7 and i9 only). You can try to fix this by updating your BIOS and GPU drivers, and by underclocking your CPU. See [this video](<https://www.youtube.com/watch?v=QzHcrbT5D_Y>) for more info.");
+                        listOfSins.Add("You have a CPU with a hardware bug that causes random crashes and errors. This is a known issue with some Intel 13th and 14th gen CPUs. You can try to fix this by updating your BIOS and/or by underclocking your CPU. See [this video](<https://www.youtube.com/watch?v=QzHcrbT5D_Y>) for more info.");
                     }
                 }
 

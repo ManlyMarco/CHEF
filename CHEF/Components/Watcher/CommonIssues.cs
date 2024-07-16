@@ -179,7 +179,7 @@ namespace CHEF.Components.Watcher
                                $"Affected plugins: `{string.Join("`, `", dupedPlugins.Select(x => x.Groups[1].TrimmedValue()).Distinct())}`");
             }
 
-            var systemInfo = Regex.Match(text, @"^\[Debug\s*\:\s*Modding API\s*\]\s*Processor: (.+); RAM: (\d+)MB \((\d+% used)\).*?; OS: (.+);?");
+            var systemInfo = Regex.Match(text, @"^\[Debug\s*\:\s*Modding API\s*\]\s*Processor: (.+); RAM: (\d+)MB \((\d+% used)\).*?; OS: (.+);?", RegexOptions.Multiline);
             if (systemInfo.Success)
             {
                 // Detect CPUs with hardare bug that causes random crashes and low VRAM errors

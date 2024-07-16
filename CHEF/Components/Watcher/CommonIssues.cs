@@ -179,10 +179,21 @@ namespace CHEF.Components.Watcher
                                $"Affected plugins: `{string.Join("`, `", dupedPlugins.Select(x => x.Groups[1].TrimmedValue()).Distinct())}`");
             }
 
-            var memAmount = Regex.Match(text, "Processor:.+RAM: (\\d+)MB");
-            if (memAmount.Success)
+            var systemInfo = Regex.Match(text, @"^\[Debug\s*\:\s*Modding API\s*\]\s*Processor: (.+); RAM: (\d+)MB \((\d+% used)\).*?; OS: (.+);?");
+            if (systemInfo.Success)
             {
-                var memCount = int.Parse(memAmount.Groups[1].TrimmedValue());
+                // Detect CPUs with hardare bug that causes random crashes and low VRAM errors
+                // 13900K 13900KF 13900KS 13700K 13700KF 14900K 14900KF 14900KS 14700K 14700KF
+                var cpu = systemInfo.Groups[1].TrimmedValue();
+                if(cpu.StartsWith("Intel"))
+                {
+                    if (cpu.Contains("13700K") || cpu.Contains("13900K") || cpu.Contains("14700K") || cpu.Contains("14900K"))
+                    {
+                        listOfSins.Add("You have a CPU with a hardware bug that causes random crashes and low VRAM errors. This is a known issue with Intel 13th and 14th gen CPUs (i7 and i9 only). You can try to fix this by updating your BIOS and GPU drivers, and by underclocking your CPU. See [this video](<https://www.youtube.com/watch?v=QzHcrbT5D_Y>) for more info.");
+                    }
+                }
+
+                var memCount = int.Parse(systemInfo.Groups[2].TrimmedValue());
                 if (memCount < 6000)
                 {
                     listOfSins.Add($"You have only {Math.Round(memCount / 1024m)}GB of RAM. At least 6 GB of RAM is recommended. The game might randomly crash, hang or load very slowly. You can prevent these issues by closing other applications, reducing number of characters, turning off high-poly mode and lowering screenshot quality.");

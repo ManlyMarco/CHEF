@@ -596,19 +596,32 @@ namespace CHEF.Components.Watcher
                         "If you want to trigger the Darkness scene in story mode: Take a non-virgin girl with the correct personality to the third floor door while there's no teacher nearby and interact with the icon next to one of the doors.");
                 }
 
-                if (ContainsAny("where") && ContainsAny("place", "located", "location", "userdata", "installed", "store", "saved", "find", " put "))
+                if (ContainsAny("where") && ContainsAny("place", "located", "location", "userdata", "installed", "store", "saved", "find", " put ", "move"))
                 {
-                    if (ContainsAny("game", "koikat", "studio", "install "))
+                    if (ContainsAny("game", "koikat", "honeyco", "honey co", "emotion", "studio", "install "))
                     {
                         listOfSins.Add("To find where the game is installed:" +
                                        "\n    A - Go to properties of the game shortcut and check the `Target` field." +
-                                       "\n    B - If you have the Steam version, open Steam library > Properties of KK Party > Local files > Browse");
+                                       "\n    B - If you have the Steam version, open Steam library > Properties of the game > Local files > Browse");
                     }
 
-                    if (ContainsAny("card", "chara", "scene", "save ", "userdata"))
+                    if (ContainsAny("card", "chara", "scene", "save ", "userdata", "outfit"))
                     {
                         listOfSins.Add(
                             "Almost all user data (e.g. cards, scenes, screenshots) is saved in subfolders inside the UserData folder inside your game directory. Read this to see which files go to which subfolder: <https://pastebin.com/vMP84w9k>");
+                    }
+
+                    if (ContainsAny("zipmod"))
+                    {
+                        listOfSins.Add(".zipmod files contain varous content mods and need to be placed inside the 'mods' folder located directly inside the game directory. You can place it in any subfolder ('MyMods' or similar is recommended), but avoid modyfying the 'Sideloader Modpack' subfolders by hand.\n" + 
+                                       "At least the latest versions of BepInEx5 and BepisPlugins are required for zipmods to be loaded. Some zipmods may require additional plugins like for example AnimationLoader or MaterialEditor.");
+                    }
+                    
+                    if (ContainsAny("plugin", "dll", "patcher"))
+                    {
+                        listOfSins.Add("If there is a readme file included with the download, follow the installation steps in it. If there is none:" + 
+                                       "Most plugins are distributed in .zip archives that you can extract directly into your game directory (there should be a BepInEx folder in them). If you have a single dll file, you have to place it in `BepInEx/plugins` if it's a plugin, or `BepInEx/patchers` if it's a patcher.\n" + 
+                                       "At least the latest version of BepInEx5 is required for most games (latest BepInEx6 nightly build is required for HoneyCome).");
                     }
                 }
 

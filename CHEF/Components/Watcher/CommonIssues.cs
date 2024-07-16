@@ -21,7 +21,7 @@ namespace CHEF.Components.Watcher
             if (text.Contains("GfxDevice: creating device client; threaded=1\nCrash!!!\nSymInit"))
             {
                 listOfSins.Add("The game is crashing immediately after initializing graphics." +
-                               "\n   A - If you are using any Citrix software, read this for a solution: <https://pastebin.com/KGYJKbrC>" +
+                               "\n   A - If you are using any Citrix software, read [this](<https://pastebin.com/KGYJKbrC>) for a solution." +
                                "\n   B - Update your GPU drivers. You might need to use Display Driver Uninstaller to clean up old drivers.");
                 return;
             }
@@ -91,7 +91,7 @@ namespace CHEF.Components.Watcher
             }
 
             if (text.Contains("FlashBangZ", StringComparison.OrdinalIgnoreCase))
-                listOfSins.Add("It looks like you are using a FlashBangZ repack. It's strongly recommend that you remove it and download a fresh version of the game, or at least install the latest version of HF Patch. Until you get rid of this repack you will be very unlikely to receive any help here, and any cards you post might be removed on sight. His repacks have been caught to contain malware in the past, and they are known to be badly put together and have many issues. You can read more about it here <https://discordapp.com/channels/447114928785063977/447120583189331968/506923193454428182>.");
+                listOfSins.Add("It looks like you are using a FlashBangZ repack. It's strongly recommend that you remove it and download a fresh version of the game, or at least install the latest version of HF Patch. Until you get rid of this repack you will be very unlikely to receive any help here, and any cards you post might be removed on sight. His repacks have been caught to contain malware in the past, and they are known to be badly put together and have many issues. You can read more about it [here](<https://discordapp.com/channels/447114928785063977/447120583189331968/506923193454428182>).");
 
             if (Regex.Matches(text, "Multiple versions detected, only").Count > 30)
             {
@@ -202,7 +202,7 @@ namespace CHEF.Components.Watcher
 
             if (Contains("Sideloader Modpack - Exclusive HS2") || Contains("Sideloader Modpack - Exclusive AIS"))
             {
-                listOfSins.Add("It looks like you have mods for AI-Shoujo and/or HoneySelect2 installed. This **will** cause issues. To fix this:\n   1 - Remove `mods\\Sideloader Modpack - Bleeding Edge`, `mods\\Sideloader Modpack - Exclusive AIS`, and `mods\\Sideloader Modpack - HS2`\n   2 - Update KKManager to v0.12.0 or newer (<https://github.com/IllusionMods/KKManager/releases/latest>)\n   3 - Start KKManager and look for updates (top right), then install all Sideloader Modpack updates.");
+                listOfSins.Add("It looks like you have mods for AI-Shoujo and/or HoneySelect2 installed. This **will** cause issues. To fix this:\n   1 - Remove `mods\\Sideloader Modpack - Bleeding Edge`, `mods\\Sideloader Modpack - Exclusive AIS`, and `mods\\Sideloader Modpack - HS2`\n   2 - Update KKManager to v0.12.0 or [newer](<https://github.com/IllusionMods/KKManager/releases/latest>)\n   3 - Start KKManager and look for updates (top right), then install all Sideloader Modpack updates.");
             }
 
             if (Contains("KoikPlugins.dll"))
@@ -242,12 +242,12 @@ namespace CHEF.Components.Watcher
                                "\n    B - If the game worked fine before and you didn't change anything, there's a good chance your hard drive is dying. Check if your hard drive is in good health, and scan it for errors (google is your friend)." +
                                "\n    C - If the game never worked correctly, make sure that the game and patch installation files are not corrupted. Redownload them if necessary or in doubt.");
             }
-            
+
             if (Regex.IsMatch(text, @"^\[Warning:XUnity\.ResourceRedirector\] Tried to load non-existing asset bundle: .+/KoikatsuSunshine_Data/\.\./abdata/communication/info_50\.unity3d"))
             {
                 listOfSins.Add("It looks like some of the game files are corrupted. This is most likely because you have the broken 1029 game update, try installing the previous/next official game update or HF Patch.");
             }
-            
+
             if (Contains("FileNotFoundException: Could not load file or assembly 'UnityEngine.CoreModule"))
             {
                 listOfSins.Add("You have plugins for a wrong game installed. This can cause many different issues and game crashes. Make sure all of your plugins are for the correct game, or reinstall latest HF Patch and let it remove all old plugins.");
@@ -297,7 +297,7 @@ namespace CHEF.Components.Watcher
                 {
                     listOfSins.Add(outdatedMods.Count < 10
                         ? $"There are some old plugins, updating them might fix some issues. Plugins: {string.Join("; ", outdatedMods)}"
-                        : "A lot of plugins are old, updating them might fix some issues. You can use HF Patch to update everything: <https://github.com/ManlyMarco/KK-HF_Patch/releases/latest>");
+                        : "A lot of plugins are old, updating them might fix some issues. You can use [HF Patch](<https://www.patreon.com/collection/52344?view=expanded>) to update everything (get one for your game).");
                 }
             }
         }

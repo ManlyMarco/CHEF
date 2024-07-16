@@ -260,8 +260,7 @@ namespace CHEF.Components.Watcher
                 {
                     if (kkmanLog.Contains("Failed to parse update manifest file") &&
                         kkmanLog.Contains("at Updates KKManager.Updater.Data.UpdateInfo.Deserialize"))
-                        listOfSins.Add(
-                            "Your KKManager might be outdated, which causes updates to fail. Check <https://github.com/IllusionMods/KKManager/releases/latest> for the latest version and update if necessary.");
+                        listOfSins.Add("Your KKManager might be outdated, which causes updates to fail. Get [the latest version of KKManager](<https://github.com/IllusionMods/KKManager/releases/latest>) and update your install.");
                 }
 
                 foreach (var textAttachment in textAttachments)
@@ -423,12 +422,12 @@ namespace CHEF.Components.Watcher
             // Only be a smartass if nothing else triggered
             if (content.Length < 35 && ContainsAny("can i ask something?", "can someone help me?", "can anyone help me?"))
             {
-                await msg.ReplyAsync($"https://dontasktoask.com/");
+                await msg.ReplyAsync($"<https://dontasktoask.com/>");
             }
 
             if (ContainsAny("flashbangz"))
             {
-                await msg.ReplyAsync($"If you are using a FlashBangZ repack, it's strongly recommend that you remove it and download a fresh version of the game. Until you get rid of this repack you will be very unlikely to receive any help here, and any cards you post might be removed on sight. His repacks have been caught to contain malware in the past, and they are infamous for being riddled with issues. You can read more about it here <https://discordapp.com/channels/447114928785063977/447120583189331968/506923193454428182>.");
+                await msg.ReplyAsync($"If you are using a FlashBangZ repack, it's strongly recommend that you remove it and download a fresh version of the game. Until you get rid of this repack you will be very unlikely to receive any help here, and any cards you post might be removed on sight. His repacks have been caught to contain malware in the past, and they are infamous for being riddled with issues. You can read more about it [here](<https://discordapp.com/channels/447114928785063977/447120583189331968/506923193454428182>).");
             }
 
             if (ContainsAny("what is the meaning of life"))
@@ -514,7 +513,7 @@ namespace CHEF.Components.Watcher
 
             if (ContainsAll("how", "update", "kkmanager"))
             {
-                listOfSins.Add($"If you have issues updating KKManager, check this guide <https://youtu.be/ceg2XXGNwcU>");
+                listOfSins.Add($"If you have issues updating KKManager, check [this guide](<https://youtu.be/ceg2XXGNwcU>).");
             }
 
             if (ContainsAny("what is"))
@@ -530,11 +529,11 @@ namespace CHEF.Components.Watcher
                 listOfSins.Add(
                     "If you want to turn on subtitles during H-Scenes and/or chara maker:" +
                     "\n    A - If the subtitles disappeared after installing HF Patch - you have to install HF Patch again and this time check the optional \"Subtitles\" plugin (it's off by default because the translations are very low quality)." +
-                    "\n    B - Go to the plugin settings and search for the \"Show Subtitles\" setting and turn it on. If the setting is missing, you need to install the KK_Subtitles plugin either by installing HF Patch or by installing it manually from here <https://github.com/DeathWeasel1337/KK_Plugins#subtitles>.");
+                    "\n    B - Go to the plugin settings and search for the \"Show Subtitles\" setting and turn it on. If the setting is missing, you need to install the KK_Subtitles plugin either by installing HF Patch or by installing it manually from [here](<https://github.com/DeathWeasel1337/KK_Plugins#subtitles>).");
 
             if (ContainsAll("overlay", "guide") && ContainsAll("any", "find"))
                 listOfSins.Add(
-                    $"You can find guides for making overlays here <https://github.com/ManlyMarco/Illusion-Overlay-Mods/tree/master/Guide> and in the <#{GuidesChannelId}> channel.");
+                    $"You can find guides for making overlays [here](<https://github.com/ManlyMarco/Illusion-Overlay-Mods/tree/master/Guide>) and in the <#{GuidesChannelId}> channel.");
 
             if (ContainsAll("crash") && ContainsAny("card sav", "saving card"))
                 listOfSins.Add(
@@ -569,7 +568,7 @@ namespace CHEF.Components.Watcher
                 {
                     if (ContainsAny("cards", "scenes"))
                         listOfSins.Add(
-                            $"You can download character cards and studio scenes in <#{CardSharingChannelId}> and <#{SceneSharingChannelId}> channels, or at the sites listed in <#{FaqsChannelId}>. If you are looking for specific cards, ask in the <#{ClassChatterChannelId}> channel. Cards and scenes are stored in special .png files with embedded game data - when downloading them make sure to get the real card file instead of a thumbnail. On Discord click on the card image and then on open original to get the real file as shown here: <https://cdn.discordapp.com/attachments/555528419442425883/713670102456991794/open_original_example.png>. On Pixiv the card files are usually linked in the description.");
+                            $"You can download character cards and studio scenes in <#{CardSharingChannelId}> and <#{SceneSharingChannelId}> channels, or at the sites listed in <#{FaqsChannelId}>. If you are looking for specific cards, ask in the <#{ClassChatterChannelId}> channel. Cards and scenes are stored in special .png files with embedded game data - when downloading them make sure to get the real card file instead of a thumbnail. On Discord click on the card image and then on open original to get the real file as shown [here](<https://cdn.discordapp.com/attachments/555528419442425883/713670102456991794/open_original_example.png>). On Pixiv the card files are usually linked in the description.");
                     else if (ContainsAny("the game", "this game", "the dlc", "the expansion", "afterschool", "after school", "koikat",
                         " kk fa"))
                     {
@@ -586,8 +585,7 @@ namespace CHEF.Components.Watcher
 
                     if (ContainsAny("hf patch", "hfpatch"))
                     {
-                        listOfSins.Add(
-                            $"You can download the latest version of HF Patch here: <https://github.com/ManlyMarco/KK-HF_Patch/releases/latest>. If you have trouble with downloading the torrent file then try using qBittorrent. Check the <#{FaqsChannelId}> channel for more info.");
+                        listOfSins.Add($"You can download the latest versions of HF Patches [here](<https://www.patreon.com/collection/52344?view=expanded>) (each patch is for a different game). If you have trouble with downloading the torrent file then try using qBittorrent. Check the <#{FaqsChannelId}> channel for more info.");
                     }
                 }
                 else if (ContainsAny("darkness"))
@@ -608,7 +606,7 @@ namespace CHEF.Components.Watcher
                     if (ContainsAny("card", "chara", "scene", "save ", "userdata", "outfit"))
                     {
                         listOfSins.Add(
-                            "Almost all user data (e.g. cards, scenes, screenshots) is saved in subfolders inside the UserData folder inside your game directory. Read this to see which files go to which subfolder: <https://pastebin.com/vMP84w9k>");
+                            "Almost all user data (e.g. cards, scenes, screenshots) is saved in subfolders inside the UserData folder inside your game directory. Read [this](<https://pastebin.com/vMP84w9k>) to see which files go to which subfolder.");
                     }
 
                     if (ContainsAny("zipmod"))
@@ -638,8 +636,7 @@ namespace CHEF.Components.Watcher
                         "It's recommended that you don't update BepInEx manually. Some plugins might need to be updated or removed, and some configuration might need to be changed when updating it. Doing this improperly can seriously break things. Instead update by grabbing the latest version of a mod pack like for example the HF Patch.");
 
                 if (ContainsAny("update kkmanager"))
-                    listOfSins.Add(
-                        "You can get the latest version of KKManager here: <https://github.com/IllusionMods/KKManager/releases/latest>. Follow the instructions in the release post to update your existing KKManager installation.");
+                    listOfSins.Add("You can get the latest version of KKManager [here](<https://github.com/IllusionMods/KKManager/releases/latest>). Follow the instructions in the release post to update your existing KKManager installation.");
 
                 if (ContainsAny("character") && ContainsAny("request"))
                     listOfSins.Add(

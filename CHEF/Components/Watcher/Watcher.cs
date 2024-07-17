@@ -309,6 +309,9 @@ namespace CHEF.Components.Watcher
                 static string CleanUpException(string exc)
                 {
                     exc = exc.Trim();
+                    // Trim bepinex log prefix from first line only
+                    exc = Regex.Replace(exc, @"^\[\w+\s*:.*?\] ", string.Empty, RegexOptions.None);
+                    // Trim useless stack trace lines to reduce text size
                     exc = Regex.Replace(exc, @"\n(Stack trace:)?\n", "\n", RegexOptions.Multiline);
                     // Trim away useless [0x00000] in <filename unknown>:0 and <0x0001c> at the end
                     exc = Regex.Replace(exc, @" *[\[<]\dx\d+.+$", string.Empty, RegexOptions.Multiline);
@@ -317,9 +320,8 @@ namespace CHEF.Components.Watcher
 
                 // Check for exceptions
                 var allLogs = textsToProcess.Aggregate(string.Empty, (s1, s2) => s1 + s2);
-                var exceptions = Regex.Matches(allLogs, @"[^\]\n]*Exception.*(\n.*)?(((\n *at .*)+)|((\n\w+.*\))+))");
-                var prettyExceptions = exceptions.Select(x => x.Value).Where(x =>
-                    !x.Contains("System.Exception and name PrepForRemoting", StringComparison.Ordinal) && !x.Contains("AccessTools.Method:")).Select(CleanUpException).ToList();
+                var exceptions = Regex.Matches(allLogs, @"[^\n]*Exception.*(\n.*)?(((\n *at .*)+)|((\n\w+.*\))+))");
+                var prettyExceptions = exceptions.Select(x => x.Value).Where(IsValidException).Select(CleanUpException).ToList();
                 if (prettyExceptions.Count > 0)
                 {
                     var uniqueExceptions = prettyExceptions
@@ -434,6 +436,12 @@ namespace CHEF.Components.Watcher
             {
                 await msg.ReplyAsync($"The meaning of life is to play Koikatsu and worship Chikarin");
             }
+        }
+
+        private static readonly string[] _ExceptionMessageBlacklist = ["Catch Unity Event Exceptions", "System.Exception and name PrepForRemoting", "AccessTools.Method:", "AccessTools.GetTypesFromAssembly:"];
+        private static bool IsValidException(string x)
+        {
+            return !string.IsNullOrEmpty(x) && !x.ContainsAny(_ExceptionMessageBlacklist, StringComparison.Ordinal);
         }
 
         private string CleanUpLogDuplicates(string fileContent)
@@ -611,14 +619,14 @@ namespace CHEF.Components.Watcher
 
                     if (ContainsAny("zipmod"))
                     {
-                        listOfSins.Add(".zipmod files contain varous content mods and need to be placed inside the 'mods' folder located directly inside the game directory. You can place it in any subfolder ('MyMods' or similar is recommended), but avoid modyfying the 'Sideloader Modpack' subfolders by hand.\n" + 
+                        listOfSins.Add(".zipmod files contain varous content mods and need to be placed inside the 'mods' folder located directly inside the game directory. You can place it in any subfolder ('MyMods' or similar is recommended), but avoid modyfying the 'Sideloader Modpack' subfolders by hand.\n" +
                                        "At least the latest versions of BepInEx5 and BepisPlugins are required for zipmods to be loaded. Some zipmods may require additional plugins like for example AnimationLoader or MaterialEditor.");
                     }
-                    
+
                     if (ContainsAny("plugin", "dll", "patcher"))
                     {
-                        listOfSins.Add("If there is a readme file included with the download, follow the installation steps in it. If there is none:" + 
-                                       "Most plugins are distributed in .zip archives that you can extract directly into your game directory (there should be a BepInEx folder in them). If you have a single dll file, you have to place it in `BepInEx/plugins` if it's a plugin, or `BepInEx/patchers` if it's a patcher.\n" + 
+                        listOfSins.Add("If there is a readme file included with the download, follow the installation steps in it. If there is none:" +
+                                       "Most plugins are distributed in .zip archives that you can extract directly into your game directory (there should be a BepInEx folder in them). If you have a single dll file, you have to place it in `BepInEx/plugins` if it's a plugin, or `BepInEx/patchers` if it's a patcher.\n" +
                                        "At least the latest version of BepInEx5 is required for most games (latest BepInEx6 nightly build is required for HoneyCome).");
                     }
                 }

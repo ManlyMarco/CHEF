@@ -99,9 +99,23 @@ namespace CHEF.Components.Watcher
         internal static readonly string CharaRequestsChannelId = "511308816886005764";
         internal static readonly string BotControlChannelId = "508984374600138763";
         internal static readonly string HelpChannelId = "555528419442425883";
-        private static readonly string[] _emotePeek = { "<:peeeek:588304197175214092>", "<:peeeek:730454944997441536>" };
+        //private static readonly string[] _emotePeek = { "<:peeeek:588304197175214092>", "<:peeeek:730454944997441536>" };
         private static readonly string[] _emoteYay = { "<:nepyay:585938344136015884>", "<:nepyay:734048849618010164>" };
         private static readonly string[] _emoteCry = { "<:aquacri:447131902839619604>", "<:aquacri:734049329685200908>" };
+
+        private static readonly Dictionary<SocketGuild, GuildEmote[]> _ChikaEmotes = new();
+        private static readonly Random _Random = new();
+        private static GuildEmote GetRandomReactEmote(SocketTextChannel socketTextChannel)
+        {
+            if (socketTextChannel == null) return null;
+            if (!_ChikaEmotes.TryGetValue(socketTextChannel.Guild, out var chikaEmotes))
+            {
+                chikaEmotes = socketTextChannel.Guild.Emotes.Where(x => x.Name.StartsWith("chika", StringComparison.OrdinalIgnoreCase)).ToArray();
+                _ChikaEmotes[socketTextChannel.Guild] = chikaEmotes;
+            }
+
+            return chikaEmotes.Length <= 0 ? null : chikaEmotes[_Random.Next(0, chikaEmotes.Length)];
+        }
 
         public bool UserIsCounselor(SocketGuildUser user)
         {
@@ -120,7 +134,8 @@ namespace CHEF.Components.Watcher
 
             var channel = smsg.Channel;
             var isDM = channel is SocketDMChannel;
-            if (channel is not SocketTextChannel && !isDM)
+            var socketTextChannel = channel as SocketTextChannel;
+            if (socketTextChannel == null && !isDM)
             {
                 return;
             }
@@ -130,6 +145,8 @@ namespace CHEF.Components.Watcher
             var isOther = channel.Name == "mod-programming" || isDM;
 
             if (!isHelp && !isOther) return;
+
+            GetRandomReactEmote(socketTextChannel);
 
             var content = msg.Content?.SafeNormalize().Replace("\r\n", "\n") ?? string.Empty;
 
@@ -181,11 +198,10 @@ namespace CHEF.Components.Watcher
             if (isTestChannel || isDM) canBeHelped = true;
 
             // Vanity stuff
-            if (content.Equals("chika", StringComparison.OrdinalIgnoreCase) ||
-                content.Equals("bot", StringComparison.OrdinalIgnoreCase) ||
-                ContainsAny("chikarin", "techinician chikarin", "help bot", "i hate robots"))
+            if (Regex.IsMatch(content, @"\b(chika(rin)?|help bot)\b"))
             {
-                await AddReaction(msg, _emotePeek);
+                var emote = GetRandomReactEmote(socketTextChannel);
+                if (emote != null) await msg.AddReactionAsync(emote);
             }
             else if (content.Equals("good bot", StringComparison.OrdinalIgnoreCase))
             {
@@ -291,9 +307,11 @@ namespace CHEF.Components.Watcher
                     }
                 }
 
-                if (!isDM)
+                if (!isDM && textsToProcess.Count >= 1)
                 {
-                    if (_LastLogCheckTime.TryGetValue(msg.Author.Id, out var lastCheckTime) && DateTime.UtcNow - lastCheckTime < TimeSpan.FromMinutes(10) && !UserIsCounselor(msg.Author as SocketGuildUser))
+                    if (_LastLogCheckTime.TryGetValue(msg.Author.Id, out var lastCheckTime) && 
+                        DateTime.UtcNow - lastCheckTime < TimeSpan.FromMinutes(10) && 
+                        !UserIsCounselor(msg.Author as SocketGuildUser))
                     {
                         await msg.ReplyAsync($"Please avoid rapidly posting log files in the help channel. You can always send me log files directly through DMs (Direct Messages) if you'd like me to analyze them.");
                         return;
@@ -406,7 +424,7 @@ namespace CHEF.Components.Watcher
                 {
                     var m = await msg.ReplyAsync($"I found answers to some common issues that might be helpful to you:\n• {string.Join("\n• ", listOfSins)}");
 
-                    var guildName = channel is SocketTextChannel stc ? stc.Guild.Name : ((SocketDMChannel)channel).Recipient.Username;
+                    var guildName = socketTextChannel != null ? socketTextChannel.Guild.Name : ((SocketDMChannel)channel).Recipient.Username;
                     Logger.Log($"Tried to help [{msg.Author.Username}] in [{guildName}\\{channel.Name}] with {listOfSins.Count} hits - " + m.GetJumpUrl());
 
                     if (canBeFixedWithHfpatch)

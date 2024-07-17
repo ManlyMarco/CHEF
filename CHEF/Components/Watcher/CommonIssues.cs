@@ -252,6 +252,11 @@ namespace CHEF.Components.Watcher
             {
                 listOfSins.Add("You have plugins for a wrong game installed. This can cause many different issues and game crashes. Make sure all of your plugins are for the correct game, or reinstall latest HF Patch and let it remove all old plugins.");
             }
+
+            if (Contains("UnityEngine.Rendering.PostProcessing.RuntimeUtilities.get_copyStdMaterial"))
+            {
+                listOfSins.Add("It looks like you are missing the KKS_PostProcessResources.asset file from your plugins directory, or the file is corrupted. This can severely slow down the game. Either remove or reinstall the KKS_PostProcessingEffect plugin to fix this.");
+            }
         }
 
         /// <summary>

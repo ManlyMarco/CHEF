@@ -83,13 +83,12 @@ namespace CHEF.Components.Watcher
             WriteCanHelpList();
         }
 
-        private static Dictionary<ulong, bool> _userCanBeHelped = new Dictionary<ulong, bool>();
+        private static Dictionary<ulong, bool> _userCanBeHelped = new();
+        private static readonly Dictionary<ulong, DateTime> _LastLogCheckTime = new();
 
-        private static readonly string OutputLogPleaseGive =
-            "If you are getting crashes or other errors in the game, please send the `output_log.txt` file from the game directory, it will help us help you. Type `how to send output_log` if you need more info.";
+        private static readonly string OutputLogPleaseGive = "If you are getting crashes or other errors in the game, please send the `output_log.txt` file from the game directory, it will help us help you. Type `how to send output_log` if you need more info. You can also DM me the log file if you'd like me to analyze it privately.";
 
-        private static readonly string OutputLogHowToSend =
-            "output_log.txt should exist in your game's root directory (next to the Koikatsu exe). Simply drag this file over to discord to upload it. If the file is too large to upload then you can compress it, or restart your game and try to reproduce the issue as quickly as possible (this should produce a much smaller log file).\nIf you can't see `output_log.txt` in your game directory then your game might be outdated. In that case either use the latest HF Patch to update, or look for the `output_log.txt` file inside of the `_Data` folder of application you had issues with (e.g. in `CharaStudio_Data` if you had issues with studio). You can also click the 'Log' button in the plugin settings window.\nIf you can't find the game's root directory type `where is the game installed?` and I will help you.";
+        private static readonly string OutputLogHowToSend = "output_log.txt should exist in your game's root directory (next to the Koikatsu exe). Simply drag this file over to discord to upload it. If the file is too large to upload then you can compress it, or restart your game and try to reproduce the issue as quickly as possible (this should produce a much smaller log file).\nIf you can't see `output_log.txt` in your game directory then your game might be outdated. In that case either use the latest HF Patch to update, or look for the `output_log.txt` file inside of the `_Data` folder of application you had issues with (e.g. in `CharaStudio_Data` if you had issues with studio). You can also click the 'Log' button in the plugin settings window.\nIf you can't find the game's root directory type `where is the game installed?` and I will help you.\nNote: Please don't spam the help channel with log files, only send one every few minutes. You can always DM me the log files to analyze privately.";
 
         private int _maxLogFileSize = 9 * 1024 * 1024;
         internal static readonly string FaqsChannelId = "520061230279294976";
@@ -106,10 +105,10 @@ namespace CHEF.Components.Watcher
 
         public bool UserIsCounselor(SocketGuildUser user)
         {
-            var role = (user as IGuildUser).Guild.Roles.FirstOrDefault(x => x.Name == "Counselor");
+            if (user is not IGuildUser guildUser) return false;
+            var role = guildUser.Guild.Roles.FirstOrDefault(x => x.Name == "Counselor");
             return user.Roles.Contains(role);
         }
-
         private async Task MsgWatcherAsync(SocketMessage smsg)
         {
             if (smsg.Author.IsBot ||
@@ -176,7 +175,7 @@ namespace CHEF.Components.Watcher
                 }
 
                 if (content == "chikahelp" || msg.MentionedUsers.Any(x => x.Id == Client.CurrentUser.Id))
-                    await msg.ReplyAsync($"Hello!\nI **will{(canBeHelped != true ? " not" : "")}** automatically try to help when you post a question or send your output_log.txt.\nHere are my commands:\nnohelp - I will no longer try to help you (default for Counsellors)\nyeshelp - I will resume trying to help you\ngivelog - Show instructions on how to get the output_log.txt file\ngood bot - Mark my last reply as useful\nbad bot - Mark my last reply as needing improvement");
+                    await msg.ReplyAsync($"Hello! I **will{(canBeHelped != true ? " not" : "")}** automatically try to help when you post a question or send your output_log.txt.\nHere are my commands:\n- nohelp - I will no longer try to help you (default for Counsellors)\n- yeshelp - I will resume trying to help you\ngivelog - Show instructions on how to get the output_log.txt file\n- good bot - Mark my last reply as useful\n- bad bot - Mark my last reply as needing improvement\nYou can DM me with log files to diagnose them privately!");
             }
 
             if (isTestChannel || isDM) canBeHelped = true;
@@ -290,6 +289,16 @@ namespace CHEF.Components.Watcher
                             }
                         }
                     }
+                }
+
+                if (!isDM)
+                {
+                    if (_LastLogCheckTime.TryGetValue(msg.Author.Id, out var lastCheckTime) && DateTime.UtcNow - lastCheckTime < TimeSpan.FromMinutes(10) && !UserIsCounselor(msg.Author as SocketGuildUser))
+                    {
+                        await msg.ReplyAsync($"Please avoid rapidly posting log files in the help channel. You can always send me log files directly through DMs (Direct Messages) if you'd like me to analyze them.");
+                        return;
+                    }
+                    _LastLogCheckTime[msg.Author.Id] = DateTime.UtcNow;
                 }
 
                 foreach (var logText in textsToProcess)
@@ -415,8 +424,7 @@ namespace CHEF.Components.Watcher
                 }
                 else if (isDM)
                 {
-                    await channel.SendMessageAsync(
-                        $"Please send a log file you want me to analyze. You can try asking some questions, but I'm unlikely to help you, it's better to ask in <#{HelpChannelId}> instead.");
+                    await channel.SendMessageAsync($"Please send a log file you want me to analyze. You can try asking some questions, but I'm unlikely to help you, it's better to ask in <#{HelpChannelId}> instead.");
                     return;
                 }
             }
@@ -576,7 +584,10 @@ namespace CHEF.Components.Watcher
                 {
                     if (ContainsAny("cards", "scenes"))
                         listOfSins.Add(
-                            $"You can download character cards and studio scenes in <#{CardSharingChannelId}> and <#{SceneSharingChannelId}> channels, or at the sites listed in <#{FaqsChannelId}>. If you are looking for specific cards, ask in the <#{ClassChatterChannelId}> channel. Cards and scenes are stored in special .png files with embedded game data - when downloading them make sure to get the real card file instead of a thumbnail. On Discord click on the card image and then on open original to get the real file as shown [here](<https://cdn.discordapp.com/attachments/555528419442425883/713670102456991794/open_original_example.png>). On Pixiv the card files are usually linked in the description.");
+                            $"You can download character cards and studio scenes in <#{CardSharingChannelId}> and <#{SceneSharingChannelId}> channels, or at the sites listed in <#{FaqsChannelId}>. If you are looking for specific cards, ask in the <#{ClassChatterChannelId}> channel.\n" +
+                            $"Cards and scenes are stored in special .png files with embedded game data. Any sort of image compression or even re-saving will destroy the extra data and make the card unusable. When downloading make sure to get the real card file or the it will not work!\n" +
+                            $"  - On Discord all images are recompressed and unusable in the game (even clicking 'open original' doesn't help). The card must be sent inside of a .zip archive, it should be right next to the card preview image.\n" +
+                            $"  - On Pixiv the card files are usually linked in the description, but in rare cases might be uploaded as a normal image - in that case you have to expand the image to get the original, uncompressed card file.");
                     else if (ContainsAny("the game", "this game", "the dlc", "the expansion", "afterschool", "after school", "koikat",
                         " kk fa"))
                     {

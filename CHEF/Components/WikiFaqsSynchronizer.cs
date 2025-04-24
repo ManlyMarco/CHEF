@@ -6,6 +6,7 @@ using System.Reactive.Concurrency;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using CHEF.Components.Polls;
 using Discord;
 using Discord.WebSocket;
 using Html2Markdown;
@@ -15,60 +16,57 @@ namespace CHEF.Components
 {
     public class WikiFaqsSynchronizer : Component
     {
+        private const string SyncWikiToFaq = "sync-wiki-to-faq";
+
         public WikiFaqsSynchronizer(DiscordSocketClient client) : base(client)
         {
         }
 
         public override async Task SetupAsync()
         {
-            WatchForCommandInControlChannel("syncfaq", ProcessSyncCommand, false);
-
-            await Task.CompletedTask;
+            var cmd = await Client.CreateGlobalApplicationCommandAsync(new SlashCommandBuilder().WithName(SyncWikiToFaq)
+                                                                                                .WithDescription("Post all Q/A from wiki to a channel, remove old Q/A posts in channel if any")
+                                                                                                .AddOption("channel", ApplicationCommandOptionType.Channel, "FAQ channel")
+                                                                                                .AddOption("url", ApplicationCommandOptionType.String, "URL to the wiki page")
+                                                                                                .AddOption("simulate", ApplicationCommandOptionType.Boolean, "If set to 'true', the command will simulate the task without making any changes")
+                                                                                                .WithDefaultMemberPermissions(GuildPermission.Administrator)
+                                                                                                .WithContextTypes(InteractionContextType.Guild)
+                                                                                                .Build());
+            Client.ListenToSlashCommand<ITextChannel, string, bool>(cmd, SyncFaqChannel);
         }
 
-        private async Task ProcessSyncCommand(SocketUserMessage msg)
-        {
-            try
-            {
-                var parts = msg.Content.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                var whatif = parts.Length >= 4 && parts[3].Trim().ToLowerInvariant() == "whatif";
-                await SyncFaqChannel(msg, ulong.Parse(parts[1].Trim('#')), new Uri(parts[2].Trim('<', '>', ' ')), whatif);
-            }
-            catch (Exception ex)
-            {
-                await msg.ReplyAsync("Sync failed: " + ex.Message);
-            }
-        }
-
-        private async Task SyncFaqChannel(SocketUserMessage msg, ulong targetId, Uri sourceUrl, bool whatif)
+        private async Task SyncFaqChannel(SocketSlashCommand msg, ITextChannel targetChannel, string urlString, bool whatif)
         {
             var sw = Stopwatch.StartNew();
             if (whatif)
-                await msg.ReplyAsync($"Running with whatif flag - Simulating the task, nothing will actually get changed in the target channel.");
+                await msg.RespondAsync($"Running with whatif flag - Simulating the task, nothing will actually get changed in the target channel.", ephemeral: true);
 
-            var targetChannel = (SocketTextChannel)((SocketTextChannel)msg.Channel).Guild.GetChannel(targetId);
+            Uri.TryCreate(urlString?.Trim('<', '>', ' '), UriKind.Absolute, out var sourceUrl);
+            if (sourceUrl == null)
+                throw new Exception($"Invalid URL: {urlString}");
+
             if (targetChannel is null)
-                throw new Exception($"Could not find channel <#{targetId}>. If it's a thread, make sure it is not archived.");
+                throw new Exception($"Could not find channel. If it's a thread, make sure it is not archived.");
 
             if (targetChannel is SocketThreadChannel stc && stc.IsArchived)
-                throw new Exception($"Thread <#{targetId}> is archived, aborting. Unarchive the thread and try again.");
+                throw new Exception($"Thread <#{targetChannel.Id}> is archived, aborting. Unarchive the thread and try again.");
 
-            var myPerms = targetChannel.Guild.CurrentUser.GetPermissions(targetChannel);
+            var myPerms = (await targetChannel.Guild.GetCurrentUserAsync()).GetPermissions(targetChannel);
             if (!myPerms.Has(ChannelPermission.ManageMessages))
-                throw new Exception($"I don't have ManageMessages permission in the <#{targetId}> channel.");
+                throw new Exception($"I don't have ManageMessages permission in the <#{targetChannel.Id}> channel.");
 
             var maxMessageCount = 200;
             var oldMessages = (await targetChannel.GetMessagesAsync(maxMessageCount).FlattenAsync()).ToList();
             if (oldMessages.Count == maxMessageCount)
             {
-                throw new Exception($"Over {maxMessageCount} messages found in channel <#{targetId}>, something doesn't seem right. Aborting.");
+                throw new Exception($"Over {maxMessageCount} messages found in channel <#{targetChannel.Id}>, something doesn't seem right. Aborting.");
             }
 
             foreach (var message in oldMessages)
             {
                 if (message.Author.Id != Client.CurrentUser.Id)
                 {
-                    throw new Exception($"Channel <#{targetId}> contains a message that doesn't belong to me: {message.GetJumpUrl()}");
+                    throw new Exception($"Channel <#{targetChannel.Id}> contains a message that doesn't belong to me: {message.GetJumpUrl()}");
                 }
             }
 
@@ -111,7 +109,7 @@ namespace CHEF.Components
                 throw new Exception($"Too few QA lines found in {newMessageContents.Count}, aborting.\nMake sure the URL is pointing at a FAQ page on the hgames wiki, and that the page is in correct format.");
             }
 
-            await msg.ReplyAsync($"Deleting {oldMessages.Count} of my old messages in channel <#{targetId}>");
+            await msg.RespondAsync($"Deleting {oldMessages.Count} of my old messages in channel <#{targetChannel.Id}>", ephemeral: true);
             foreach (var message in oldMessages)
             {
                 if (!whatif)
@@ -121,7 +119,7 @@ namespace CHEF.Components
                 }
             }
 
-            await msg.ReplyAsync($"Spawning {newMessageContents.Count} new messages in channel <#{targetId}>");
+            await msg.RespondAsync($"Spawning {newMessageContents.Count} new messages in channel <#{targetChannel.Id}>", ephemeral: true);
             foreach (var messageContent in newMessageContents)
             {
                 var sanitizedMessageContent = Regex.Replace(Regex.Replace(messageContent, @"\[.+?\]\((\S+)\)", "<$1>"), @"(\r?\n *)+", "\r\n");
@@ -145,7 +143,7 @@ namespace CHEF.Components
                 await targetChannel.SendMessageAsync($"*This is a read-only copy of <{sourceUrl}> pulled at {DateTime.Now:yyy/MM/dd HH:mm:ss}. Notify a moderator if you updated the wiki and want it synced.*");
             }
 
-            await msg.ReplyAsync($"Successfully finished syncing channel <#{targetId}> in {sw.Elapsed:hh\\:mm\\:ss}!{(targetChannel is SocketThreadChannel ? "\nRemember to archive the thread!" : "")}");
+            await msg.RespondAsync($"Successfully finished syncing channel <#{targetChannel.Id}> in {sw.Elapsed:hh\\:mm\\:ss}!{(targetChannel is SocketThreadChannel ? "\nRemember to archive the thread!" : "")}", ephemeral: true);
         }
 
         public static async Task<HtmlNode> LoadHtml(Uri sourceUrl)

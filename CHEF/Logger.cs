@@ -1,8 +1,7 @@
 ﻿using System;
 using System.IO;
-using System.Runtime.CompilerServices;
+using System.Linq;
 using System.Threading.Tasks;
-using Discord;
 using Discord.WebSocket;
 
 namespace CHEF
@@ -29,6 +28,21 @@ namespace CHEF
             {
                 Console.WriteLine("Failed to connect to remote log channel - " + e);
             }
+
+            // log who called which command
+            client.SlashCommandExecuted += arg =>
+            {
+                try
+                {
+                    var user = arg.User.GlobalName;
+                    Log($"{user} called command {arg.CommandName} with args {string.Join(' ', arg.Data.Options.Select(x => $"{x.Name}=[{x.Value}]"))}");
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                }
+                return Task.CompletedTask;
+            };
         }
 
         internal static void Log(string msg)

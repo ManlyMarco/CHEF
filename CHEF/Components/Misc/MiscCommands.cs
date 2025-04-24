@@ -1,8 +1,5 @@
 ﻿using Discord.WebSocket;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using CHEF.Components.Polls;
 using Discord;
@@ -21,41 +18,27 @@ namespace CHEF.Components.Misc
                                                                                 .WithContextTypes(InteractionContextType.Guild)
                                                                                 .Build());
 
-            Client.ListenToSlashCommand<ITextChannel ,string>(cmd, Callback);
+            Client.ListenToSlashCommand<ITextChannel, string>(cmd, Callback);
+
         }
 
-        private async Task Callback(SocketSlashCommand arg, ITextChannel channel, string arg3)
+        private static async Task Callback(SocketSlashCommand arg, ITextChannel channel, string text)
         {
-        }
-
-        private async Task ClientOnSlashCommandExecuted(SocketSlashCommand arg)
-        {
-            // log who called which command
-            var user = arg.User.GlobalName;
-            Logger.Log($"{user} called command {arg.CommandName} with args {string.Join(' ', arg.Data.Options.Select(x => $"{x.Name}=[{x.Value}]"))}");
-
-            if (arg.CommandName == "chika-say")
+            if (channel != null && !string.IsNullOrWhiteSpace(text))
             {
-                var commandData = arg.Data;
-                var options = commandData.Options;
-                var channel = options.FirstOrDefault(x => x.Name == "channel")?.Value as SocketTextChannel;
-                var text = options.FirstOrDefault(x => x.Name == "text")?.Value?.ToString();
-                if (channel != null && !string.IsNullOrWhiteSpace(text))
+                try
                 {
-                    try
-                    {
-                        _ = channel.SendMessageAsync(text);
-                        await arg.RespondAsync($"Chika will say \"{text}\" in {channel.Mention}", ephemeral: true);
-                    }
-                    catch (Exception e)
-                    {
-                        await arg.RespondAsync("Failed to send message: " + e.Message, ephemeral: true);
-                    }
+                    await arg.RespondAsync($"Chika will say \"{text}\" in {channel.Mention}", ephemeral: true);
+                    await channel.SendMessageAsync(text);
                 }
-                else
+                catch (Exception e)
                 {
-                    await arg.RespondAsync("Invalid channel or empty text", ephemeral: true);
+                    await arg.RespondAsync("Failed to send message: " + e.Message, ephemeral: true);
                 }
+            }
+            else
+            {
+                await arg.RespondAsync("Invalid channel or empty text", ephemeral: true);
             }
         }
     }

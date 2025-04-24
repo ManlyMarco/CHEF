@@ -2,11 +2,9 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Reactive.Concurrency;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using CHEF.Components.Polls;
+using CHEF.Extensions;
 using Discord;
 using Discord.WebSocket;
 using Html2Markdown;

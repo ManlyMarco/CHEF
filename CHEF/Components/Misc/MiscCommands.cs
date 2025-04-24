@@ -1,7 +1,7 @@
 ﻿using Discord.WebSocket;
 using System;
 using System.Threading.Tasks;
-using CHEF.Components.Polls;
+using CHEF.Extensions;
 using Discord;
 
 namespace CHEF.Components.Misc

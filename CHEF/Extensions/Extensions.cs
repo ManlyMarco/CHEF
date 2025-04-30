@@ -1,10 +1,12 @@
 ﻿using Discord.WebSocket;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using Discord;
 
 namespace CHEF.Extensions
 {
@@ -58,41 +60,129 @@ namespace CHEF.Extensions
             return $"<t:{t}>";
         }
 
-        public static void ListenToSlashCommand<T1>(this DiscordSocketClient client, SocketApplicationCommand command, Func<SocketSlashCommand, T1, Task> callback) =>
-            ListenToSlashCommand(client, command, 1, callback == null ? null : async (slashCommand, options) => await callback(slashCommand, (T1)options[0].Value));
-        public static void ListenToSlashCommand<T1, T2>(this DiscordSocketClient client, SocketApplicationCommand command, Func<SocketSlashCommand, T1, T2, Task> callback) =>
-            ListenToSlashCommand(client, command, 2, callback == null ? null : async (slashCommand, options) => await callback(slashCommand, (T1)options[0].Value, (T2)options[1].Value));
-        public static void ListenToSlashCommand<T1, T2, T3>(this DiscordSocketClient client, SocketApplicationCommand command, Func<SocketSlashCommand, T1, T2, T3, Task> callback) =>
-            ListenToSlashCommand(client, command, 3, callback == null ? null : async (slashCommand, options) => await callback(slashCommand, (T1)options[0].Value, (T2)options[1].Value, (T3)options[2].Value));
-        private static void ListenToSlashCommand(DiscordSocketClient client, SocketApplicationCommand command, int optionCount, Func<SocketSlashCommand, SocketSlashCommandDataOption[], Task> callback)
+        public static void ListenToSlashCommand(this DiscordSocketClient client, SocketApplicationCommand command, Delegate handler)
         {
             if (client == null) throw new ArgumentNullException(nameof(client));
-            if (callback == null) throw new ArgumentNullException(nameof(callback));
-
             if (command == null) throw new ArgumentNullException(nameof(command));
-            if (command.Options.Count != optionCount)
-                throw new ArgumentException($"Command must have exactly {optionCount} options");
+            if (handler == null) throw new ArgumentNullException(nameof(handler));
+            if (handler.Method == null) throw new ArgumentNullException(nameof(handler.Method));
 
-            client.SlashCommandExecuted += ClientOnSlashCommandExecuted;
+            var mparams = handler.Method.GetParameters();
+            var options = command.Options.ToDictionary(x => !string.IsNullOrWhiteSpace(x.Name) ? x.Name : throw new ArgumentException("Option has no name (subcommands are not supported)"), x => x);
 
-            async Task ClientOnSlashCommandExecuted(SocketSlashCommand arg)
+            if (mparams.Length != options.Count + 1)
+                throw new ArgumentException($"handler had {mparams.Length} arguments but must have {options.Count + 1} - SocketSlashCommand + every option that the command has");
+
+            // Ensure all params match the option names and types (order may be different)
+            foreach (var mparam in mparams)
             {
-                if (arg.CommandName == command.Name)
+                if (mparam.ParameterType == typeof(SocketSlashCommand))
+                    continue;
+
+                options.TryGetValue(mparam.Name ?? "", out var option);
+                if (option == null)
+                    throw new ArgumentException($"Command option {mparam.Name} not found in command options");
+
+                switch (option.Type)
+                {
+                    case ApplicationCommandOptionType.String:
+                        if (mparam.ParameterType != typeof(string))
+                            throw new ArgumentException($"Command option {mparam.Name} is of type {mparam.ParameterType} but must be of type {option.Type}");
+                        break;
+                    case ApplicationCommandOptionType.Boolean:
+                        if (mparam.ParameterType != typeof(bool))
+                            throw new ArgumentException($"Command option {mparam.Name} is of type {mparam.ParameterType} but must be of type {option.Type}");
+                        break;
+
+                    case ApplicationCommandOptionType.Number:
+                        if (mparam.ParameterType != typeof(double) && mparam.ParameterType != typeof(float))
+                            throw new ArgumentException($"Command option {mparam.Name} is of type {mparam.ParameterType} but must be of type {option.Type}");
+                        break;
+                    case ApplicationCommandOptionType.Integer:
+                        if (mparam.ParameterType != typeof(long) && mparam.ParameterType != typeof(int))
+                            throw new ArgumentException($"Command option {mparam.Name} is of type {mparam.ParameterType} but must be of type {option.Type}");
+                        break;
+
+                    case ApplicationCommandOptionType.User:
+                        if (!mparam.ParameterType.IsAssignableTo(typeof(IUser)))
+                            throw new ArgumentException($"Command option {mparam.Name} is of type {mparam.ParameterType} but must be of type {option.Type}");
+                        break;
+                    case ApplicationCommandOptionType.Channel:
+                        if (!mparam.ParameterType.IsAssignableTo(typeof(IChannel)))
+                            throw new ArgumentException($"Command option {mparam.Name} is of type {mparam.ParameterType} but must be of type {option.Type}");
+                        break;
+                    case ApplicationCommandOptionType.Role:
+                        if (!mparam.ParameterType.IsAssignableTo(typeof(IRole)))
+                            throw new ArgumentException($"Command option {mparam.Name} is of type {mparam.ParameterType} but must be of type {option.Type}");
+                        break;
+                    case ApplicationCommandOptionType.Attachment:
+                        if (!mparam.ParameterType.IsAssignableTo(typeof(IAttachment)))
+                            throw new ArgumentException($"Command option {mparam.Name} is of type {mparam.ParameterType} but must be of type {option.Type}");
+                        break;
+                    case ApplicationCommandOptionType.Mentionable:
+                        if (!mparam.ParameterType.IsAssignableTo(typeof(IMentionable)))
+                            throw new ArgumentException($"Command option {mparam.Name} is of type {mparam.ParameterType} but must be of type {option.Type}");
+                        break;
+
+                    default:
+                        throw new ArgumentException($"Command option {mparam.Name} has unsupported type {mparam.ParameterType}");
+                }
+            }
+
+            client.SlashCommandExecuted += async eventArgs =>
+            {
+                if (eventArgs.CommandName == command.Name)
                 {
                     try
                     {
-                        var options = arg.Data.Options.ToArray();
-                        if (options.Length != optionCount)
-                            throw new ArgumentException($"Command had {options.Length} options but must have exactly {optionCount} options");
-                        await callback(arg, options);
+                        var incoming = eventArgs.Data.Options.ToDictionary(x => x.Name, x => x);
+
+                        var args = new object[mparams.Length];
+                        for (var i = 0; i < mparams.Length; i++)
+                        {
+                            var mparam = mparams[i];
+
+                            if (mparam.ParameterType == typeof(SocketSlashCommand))
+                            {
+                                args[i] = eventArgs;
+                            }
+                            else
+                            {
+                                Debug.Assert(mparam.Name != null, "mparam.Name != null");
+                                if (incoming.TryGetValue(mparam.Name, out var option))
+                                {
+                                    switch (option.Type)
+                                    {
+                                        case ApplicationCommandOptionType.Integer:
+                                        case ApplicationCommandOptionType.Number:
+                                            args[i] = Convert.ChangeType(option.Value ?? 0, mparam.ParameterType);
+                                            break;
+
+                                        default:
+                                            args[i] = option.Value;
+                                            break;
+                                    }
+                                }
+                                else
+                                {
+                                    // BUG: handle nullable?
+                                    if (!mparam.ParameterType.IsClass && !mparam.ParameterType.IsInterface)
+                                        args[i] = Convert.ChangeType(0, mparam.ParameterType);
+                                }
+                            }
+                        }
+
+                        var result = handler.DynamicInvoke(args);
+                        if (result is Task t)
+                            await t;
                     }
                     catch (Exception e)
                     {
-                        Logger.Log($"FAILED TO RUN COMMAND {arg.CommandName} in <#{arg.ChannelId}> - {e}");
-                        await arg.RespondAsync($"Failed to run command {arg.CommandName} - {e.Message}", ephemeral: true);
+                        Logger.Log($"FAILED TO RUN COMMAND {eventArgs.CommandName} in <#{eventArgs.ChannelId}> - {e}");
+                        await eventArgs.RespondAsync($"Failed to run command {eventArgs.CommandName} - {e.Message}", ephemeral: true);
                     }
                 }
-            }
+            };
         }
     }
 }

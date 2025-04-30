@@ -118,8 +118,6 @@ public class Poll(DiscordSocketClient client) : Component(client)
                 case CmdNameList:
                     await ListContestPolls(cmd);
                     break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(cmd), $"Unknown command {cmd.CommandName}");
             }
 
             PollDataStorage.TriggerDataStore();

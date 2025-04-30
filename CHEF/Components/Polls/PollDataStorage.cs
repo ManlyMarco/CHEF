@@ -70,6 +70,7 @@ public class PollDataStorage
                 var json = JsonSerializer.Serialize(Polls.Values.ToList());
                 File.WriteAllText(_pollStoragePath, json);
             }
+            Logger.Log("POLLS > Saved poll data to file");
         }
         catch (Exception e)
         {

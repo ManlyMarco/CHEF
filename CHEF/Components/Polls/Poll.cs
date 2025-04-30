@@ -26,6 +26,7 @@ public class Poll(DiscordSocketClient client) : Component(client)
 
     private const string OptNameChannel = "channel";
     private const string OptNameCount = "entrycount";
+    private const string CmdNameVote = "contest-vote";
 
     public override async Task SetupAsync()
     {
@@ -78,15 +79,19 @@ public class Poll(DiscordSocketClient client) : Component(client)
                                                .WithDefaultMemberPermissions(GuildPermission.CreateEvents | GuildPermission.ManageEvents | GuildPermission.UseApplicationCommands)
                                                .WithContextTypes(InteractionContextType.Guild)
                                                .Build();
+        var voteCmd = new SlashCommandBuilder().WithName(CmdNameVote).WithDescription("Vote for a contest poll entry.")
+                                              .AddOption("entry", ApplicationCommandOptionType.Integer, "The entry to vote for", true)
+                                              .WithDefaultMemberPermissions(GuildPermission.ViewChannel)
+                                              .WithContextTypes(InteractionContextType.Guild)
+                                              .Build();
 
         var sb = new StringBuilder();
         sb.AppendLine($"POLL > Adding commands to guild: {guild.Name}");
-        foreach (var command in new[] { startCmd, statsCmd, endCmd, deleteCmd, listCmd })
+        foreach (var command in new[] { startCmd, statsCmd, endCmd, deleteCmd, listCmd, voteCmd })
         {
             try
             {
                 var cmd = await guild.CreateApplicationCommandAsync(command);
-                sb.AppendLine($"Created command {cmd.Name}");
             }
             catch (Exception e)
             {
@@ -105,22 +110,28 @@ public class Poll(DiscordSocketClient client) : Component(client)
             {
                 case CmdNameStart:
                     await StartContestPoll(cmd);
+                    PollDataStorage.TriggerDataStore();
                     break;
                 case CmdNameStats:
                     await GetContestPollStats(cmd);
+                    PollDataStorage.TriggerDataStore();
                     break;
                 case CmdNameEnd:
                     await EndContestPoll(cmd);
+                    PollDataStorage.TriggerDataStore();
                     break;
                 case CmdNameDelete:
                     await DeleteContestPoll(cmd);
+                    PollDataStorage.TriggerDataStore();
                     break;
                 case CmdNameList:
                     await ListContestPolls(cmd);
                     break;
+                case CmdNameVote:
+                    if (await Vote(cmd))
+                        PollDataStorage.TriggerDataStore();
+                    break;
             }
-
-            PollDataStorage.TriggerDataStore();
         }
         catch (Exception e)
         {
@@ -216,55 +227,60 @@ public class Poll(DiscordSocketClient client) : Component(client)
         await cmd.RespondAsync(sb.ToString());
     }
 
+    private static async Task<bool> Vote(SocketSlashCommand msg)
+    {
+        if (!PollDataStorage.Polls.TryGetValue(msg.Channel.Id, out var pollData))
+        {
+            await msg.RespondAsync("There is no poll running in this channel", ephemeral: true);
+        }
+        else
+        {
+            if (pollData.Ended)
+            {
+                await msg.RespondAsync($"The poll in this channel has ended on {pollData.EndTime.ToTimestampString()}.", ephemeral: true);
+            }
+            else if (pollData.Entries.Any(x => x.UserId == msg.User.Id))
+            {
+                await msg.RespondAsync($"You have already voted for entry {pollData.Entries.First(x => x.UserId == msg.User.Id).Vote}. You cannot change your vote.", ephemeral: true);
+            }
+            else
+            {
+                var vote = (ulong)Convert.ChangeType(msg.Data.Options.Single().Value, typeof(ulong))!;
+                if (vote > pollData.EntryCount || vote <= 0)
+                {
+                    await msg.RespondAsync($"Your vote of {vote} is invalid. Please try again with a number between 1 and {pollData.EntryCount}.", ephemeral: true);
+                }
+                else
+                {
+                    pollData.Entries.Add(new PollEntry(msg.User.Id, vote));
+                    await msg.RespondAsync($"Your vote of {vote} was saved. Thank you for voting!", ephemeral: true);
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     private static async Task Client_MessageReceived(SocketMessage arg)
     {
-        try
+        // Check if a poll was started in the channel, if so handle the message and delete it
+        if (arg is not SocketUserMessage msg) return;
+        if (msg.Author.IsBot || msg.Author.IsWebhook) return;
+        if (PollDataStorage.Polls.TryGetValue(msg.Channel.Id, out var pollData))
         {
-            // Check if a poll was started in the channel, if so handle the message and delete it
-            if (arg is not SocketUserMessage msg) return;
-            if (msg.Author.IsBot || msg.Author.IsWebhook) return;
-            if (PollDataStorage.Polls.TryGetValue(msg.Channel.Id, out var pollData))
-                try
-                {
-                    if (pollData.Ended)
-                    {
-                        await msg.ReplyInDm($"<#{msg.Channel.Id}> > The poll in this channel has ended on {pollData.EndTime.ToTimestampString()}.");
-                    }
-                    else if (pollData.Entries.Any(x => x.UserId == msg.Author.Id))
-                    {
-                        await msg.ReplyInDm($"<#{msg.Channel.Id}> > You have already voted for entry {pollData.Entries.First(x => x.UserId == msg.Author.Id).Vote}. You cannot change your vote.");
-                    }
-                    else if (ulong.TryParse(msg.Content, NumberStyles.None, CultureInfo.InvariantCulture, out var vote))
-                    {
-                        if (vote > pollData.EntryCount || vote <= 0)
-                        {
-                            await msg.ReplyInDm($"<#{msg.Channel.Id}> > Your vote of {vote} is invalid. Please try again with a number between 1 and {pollData.EntryCount}.");
-                        }
-                        else
-                        {
-                            pollData.Entries.Add(new PollEntry(msg.Author.Id, vote));
-                            PollDataStorage.TriggerDataStore();
-                            await msg.ReplyInDm($"<#{msg.Channel.Id}> > Your vote of {vote} was saved. Thank you for voting!");
-                        }
-                    }
-                    else
-                    {
-                        await msg.ReplyInDm($"<#{msg.Channel.Id}> > Your message was not a number, please send a number in the range from 1 to {pollData.EntryCount}.");
-                    }
-                }
-                catch (Exception e)
-                {
-                    Logger.Log($"POLLS > CRASH ON POLL REPLY msg:{msg} exception:{e}");
-                    await msg.ReplyInDm($"<#{msg.Channel.Id}> > Your vote could not be registered because of an error. Contact an administrator if this issue persists.");
-                }
-                finally
-                {
-                    await msg.DeleteAsync();
-                }
-        }
-        catch (Exception e)
-        {
-            Logger.Log($"POLLS > CRASH IN POLL REPLY HANDLER arg:{arg} exception:{e}");
+            try
+            {
+                await msg.ReplyInDm($"If you wish to vote in the contest, please go to <#{msg.Channel.Id}> and use the `/{CmdNameVote}` command with a number in the range of 1 to {pollData.EntryCount}.");
+            }
+            catch (Exception e)
+            {
+                Logger.Log($"POLLS > CRASH ON POLL REPLY msg:{msg} exception:{e}");
+            }
+            finally
+            {
+                await msg.DeleteAsync();
+            }
         }
     }
 }

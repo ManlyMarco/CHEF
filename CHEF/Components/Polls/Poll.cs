@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -32,13 +31,43 @@ public class Poll(DiscordSocketClient client) : Component(client)
     {
         try
         {
-            //447114928785063977 kk
-            //560859356439117844 test
-            //var guild = Client.GetGuild(560859356439117844ul);
-            //await AddCommands(guild);
+            var startCmd = new SlashCommandBuilder().WithName(CmdNameStart).WithDescription("Start contest poll in channel. All new messages will be removed, numbers are saved as votes.")
+                                                    .AddOption(OptNameChannel, ApplicationCommandOptionType.Channel, "The channel to start the poll in", true)
+                                                    .AddOption(OptNameCount, ApplicationCommandOptionType.Integer, "The number of poll entries that can be voted on (1 to entrycount inclusively)", true)
+                                                    .WithDefaultMemberPermissions(GuildPermission.CreateEvents | GuildPermission.ManageEvents | GuildPermission.UseApplicationCommands)
+                                                    .WithContextTypes(InteractionContextType.Guild)
+                                                    .Build();
+            var statsCmd = new SlashCommandBuilder().WithName(CmdNameStats).WithDescription("Get stats of the last contest poll in a channel.")
+                                                    .AddOption(OptNameChannel, ApplicationCommandOptionType.Channel, "The channel to get the stats of the last poll in", true)
+                                                    .WithDefaultMemberPermissions(GuildPermission.CreateEvents | GuildPermission.ManageEvents | GuildPermission.UseApplicationCommands)
+                                                    .WithContextTypes(InteractionContextType.Guild)
+                                                    .Build();
+            var endCmd = new SlashCommandBuilder().WithName(CmdNameEnd).WithDescription("End contest poll in channel. The stats will be saved until a new poll is started.")
+                                                  .AddOption(OptNameChannel, ApplicationCommandOptionType.Channel, "The channel to end the poll in", true)
+                                                  .WithDefaultMemberPermissions(GuildPermission.CreateEvents | GuildPermission.ManageEvents | GuildPermission.UseApplicationCommands)
+                                                  .WithContextTypes(InteractionContextType.Guild)
+                                                  .Build();
+            var deleteCmd = new SlashCommandBuilder().WithName(CmdNameDelete).WithDescription("Delete contest poll in channel. Stats will be deleted and new messages will stop being removed.")
+                                                     .AddOption(OptNameChannel, ApplicationCommandOptionType.Channel, "The channel to delete the poll in", true)
+                                                     .WithDefaultMemberPermissions(GuildPermission.CreateEvents | GuildPermission.ManageEvents | GuildPermission.UseApplicationCommands)
+                                                     .WithContextTypes(InteractionContextType.Guild)
+                                                     .Build();
+            var listCmd = new SlashCommandBuilder().WithName(CmdNameList).WithDescription("List all active and ended polls.")
+                                                   .WithDefaultMemberPermissions(GuildPermission.CreateEvents | GuildPermission.ManageEvents | GuildPermission.UseApplicationCommands)
+                                                   .WithContextTypes(InteractionContextType.Guild)
+                                                   .Build();
+            var voteCmd = new SlashCommandBuilder().WithName(CmdNameVote).WithDescription("Vote for a contest poll entry.")
+                                                  .AddOption("entry", ApplicationCommandOptionType.Integer, "The entry to vote for", true)
+                                                  .WithDefaultMemberPermissions(GuildPermission.ViewChannel)
+                                                  .WithContextTypes(InteractionContextType.Guild)
+                                                  .Build();
 
-            foreach (var guild in Client.Guilds)
-                await AddCommands(guild);
+            await Client.CreateGlobalApplicationCommandAsync(startCmd);
+            await Client.CreateGlobalApplicationCommandAsync(statsCmd);
+            await Client.CreateGlobalApplicationCommandAsync(endCmd);
+            await Client.CreateGlobalApplicationCommandAsync(deleteCmd);
+            await Client.CreateGlobalApplicationCommandAsync(listCmd);
+            await Client.CreateGlobalApplicationCommandAsync(voteCmd);
         }
         catch (Exception e)
         {
@@ -50,56 +79,6 @@ public class Poll(DiscordSocketClient client) : Component(client)
         Client.MessageReceived += Client_MessageReceived;
 
         await PollDataStorage.InitDataStorage();
-    }
-
-    private static async Task AddCommands(SocketGuild guild)
-    {
-        var startCmd = new SlashCommandBuilder().WithName(CmdNameStart).WithDescription("Start contest poll in channel. All new messages will be removed, numbers are saved as votes.")
-                                                .AddOption(OptNameChannel, ApplicationCommandOptionType.Channel, "The channel to start the poll in", true)
-                                                .AddOption(OptNameCount, ApplicationCommandOptionType.Integer, "The number of poll entries that can be voted on (1 to entrycount inclusively)", true)
-                                                .WithDefaultMemberPermissions(GuildPermission.CreateEvents | GuildPermission.ManageEvents | GuildPermission.UseApplicationCommands)
-                                                .WithContextTypes(InteractionContextType.Guild)
-                                                .Build();
-        var statsCmd = new SlashCommandBuilder().WithName(CmdNameStats).WithDescription("Get stats of the last contest poll in a channel.")
-                                                .AddOption(OptNameChannel, ApplicationCommandOptionType.Channel, "The channel to get the stats of the last poll in", true)
-                                                .WithDefaultMemberPermissions(GuildPermission.CreateEvents | GuildPermission.ManageEvents | GuildPermission.UseApplicationCommands)
-                                                .WithContextTypes(InteractionContextType.Guild)
-                                                .Build();
-        var endCmd = new SlashCommandBuilder().WithName(CmdNameEnd).WithDescription("End contest poll in channel. The stats will be saved until a new poll is started.")
-                                              .AddOption(OptNameChannel, ApplicationCommandOptionType.Channel, "The channel to end the poll in", true)
-                                              .WithDefaultMemberPermissions(GuildPermission.CreateEvents | GuildPermission.ManageEvents | GuildPermission.UseApplicationCommands)
-                                              .WithContextTypes(InteractionContextType.Guild)
-                                              .Build();
-        var deleteCmd = new SlashCommandBuilder().WithName(CmdNameDelete).WithDescription("Delete contest poll in channel. Stats will be deleted and new messages will stop being removed.")
-                                                 .AddOption(OptNameChannel, ApplicationCommandOptionType.Channel, "The channel to delete the poll in", true)
-                                                 .WithDefaultMemberPermissions(GuildPermission.CreateEvents | GuildPermission.ManageEvents | GuildPermission.UseApplicationCommands)
-                                                 .WithContextTypes(InteractionContextType.Guild)
-                                                 .Build();
-        var listCmd = new SlashCommandBuilder().WithName(CmdNameList).WithDescription("List all active and ended polls.")
-                                               .WithDefaultMemberPermissions(GuildPermission.CreateEvents | GuildPermission.ManageEvents | GuildPermission.UseApplicationCommands)
-                                               .WithContextTypes(InteractionContextType.Guild)
-                                               .Build();
-        var voteCmd = new SlashCommandBuilder().WithName(CmdNameVote).WithDescription("Vote for a contest poll entry.")
-                                              .AddOption("entry", ApplicationCommandOptionType.Integer, "The entry to vote for", true)
-                                              .WithDefaultMemberPermissions(GuildPermission.ViewChannel)
-                                              .WithContextTypes(InteractionContextType.Guild)
-                                              .Build();
-
-        var sb = new StringBuilder();
-        sb.AppendLine($"POLL > Adding commands to guild: {guild.Name}");
-        foreach (var command in new[] { startCmd, statsCmd, endCmd, deleteCmd, listCmd, voteCmd })
-        {
-            try
-            {
-                var cmd = await guild.CreateApplicationCommandAsync(command);
-            }
-            catch (Exception e)
-            {
-                sb.AppendLine($"Failed to create command {command.Name}, aborting\n{e}");
-                break;
-            }
-        }
-        Logger.Log(sb.ToString());
     }
 
     private static async Task ClientOnSlashCommandExecuted(SocketSlashCommand cmd)

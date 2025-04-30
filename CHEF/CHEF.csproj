@@ -19,9 +19,6 @@
   
   <ItemGroup>
     <Compile Remove="Components\CloudVisionOcr.cs" />
-    <Compile Remove="Components\Commands\CommandHandler.cs" />
-    <Compile Remove="Components\Commands\Info.cs" />
-    <Compile Remove="Components\Commands\PermissionSystem.cs" />
     <Compile Remove="Components\Watcher\ImageParser.cs" />
   </ItemGroup>
   
@@ -41,9 +38,6 @@
   
   <ItemGroup>
     <None Include="Components\CloudVisionOcr.cs" />
-    <None Include="Components\Commands\CommandHandler.cs" />
-    <None Include="Components\Commands\Info.cs" />
-    <None Include="Components\Commands\PermissionSystem.cs" />
     <None Include="Components\Watcher\ImageParser.cs" />
   </ItemGroup>
   

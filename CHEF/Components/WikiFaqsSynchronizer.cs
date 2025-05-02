@@ -24,9 +24,9 @@ namespace CHEF.Components
         {
             var cmd = await Client.CreateGlobalApplicationCommandAsync(new SlashCommandBuilder().WithName(SyncWikiToFaq)
                                                                                                 .WithDescription("Post all Q/A from wiki to a channel, remove old Q/A posts in channel if any")
-                                                                                                .AddOption("channel", ApplicationCommandOptionType.Channel, "FAQ channel")
-                                                                                                .AddOption("url", ApplicationCommandOptionType.String, "URL to the wiki page")
-                                                                                                .AddOption("simulate", ApplicationCommandOptionType.Boolean, "If set to 'true', the command will simulate the task without making any changes")
+                                                                                                .AddOption("channel", ApplicationCommandOptionType.Channel, "FAQ channel", true)
+                                                                                                .AddOption("url", ApplicationCommandOptionType.String, "URL to the wiki page", true)
+                                                                                                .AddOption("simulate", ApplicationCommandOptionType.Boolean, "If set to 'true', the command will simulate the task without making any changes", true)
                                                                                                 .WithDefaultMemberPermissions(GuildPermission.Administrator)
                                                                                                 .WithContextTypes(InteractionContextType.Guild)
                                                                                                 .Build());
@@ -35,9 +35,18 @@ namespace CHEF.Components
 
         private async Task SyncFaqChannel(SocketSlashCommand msg, ITextChannel channel, string url, bool simulate)
         {
+            await msg.RespondAsync($"Rewriting {channel.Mention} to match contents of {url}");
+
+            var thread = channel as SocketThreadChannel;
+            if (thread != null && thread.IsArchived)
+            {
+                await msg.FollowupAsync("Unarchiving the thread");
+                await thread.ModifyAsync(props => props.Archived = false);
+            }
+
             var sw = Stopwatch.StartNew();
             if (simulate)
-                await msg.RespondAsync($"Running with simulate flag - Simulating the task, nothing will actually get changed in the target channel.", ephemeral: true);
+                await msg.FollowupAsync($"Running with simulate flag - Simulating the task, nothing will actually get changed in the target channel.", ephemeral: true);
 
             Uri.TryCreate(url?.Trim('<', '>', ' '), UriKind.Absolute, out var sourceUrl);
             if (sourceUrl == null)
@@ -107,7 +116,7 @@ namespace CHEF.Components
                 throw new Exception($"Too few QA lines found in {newMessageContents.Count}, aborting.\nMake sure the URL is pointing at a FAQ page on the hgames wiki, and that the page is in correct format.");
             }
 
-            await msg.RespondAsync($"Deleting {oldMessages.Count} of my old messages in channel <#{channel.Id}>", ephemeral: true);
+            await msg.FollowupAsync($"Deleting {oldMessages.Count} of my old messages in channel <#{channel.Id}>", ephemeral: true);
             foreach (var message in oldMessages)
             {
                 if (!simulate)
@@ -117,7 +126,7 @@ namespace CHEF.Components
                 }
             }
 
-            await msg.RespondAsync($"Spawning {newMessageContents.Count} new messages in channel <#{channel.Id}>", ephemeral: true);
+            await msg.FollowupAsync($"Spawning {newMessageContents.Count} new messages in channel <#{channel.Id}>", ephemeral: true);
             foreach (var messageContent in newMessageContents)
             {
                 var sanitizedMessageContent = Regex.Replace(Regex.Replace(messageContent, @"\[.+?\]\((\S+)\)", "<$1>"), @"(\r?\n *)+", "\r\n");
@@ -141,7 +150,13 @@ namespace CHEF.Components
                 await channel.SendMessageAsync($"*This is a read-only copy of <{sourceUrl}> pulled at {DateTime.Now:yyy/MM/dd HH:mm:ss}. Notify a moderator if you updated the wiki and want it synced.*");
             }
 
-            await msg.RespondAsync($"Successfully finished syncing channel <#{channel.Id}> in {sw.Elapsed:hh\\:mm\\:ss}!{(channel is SocketThreadChannel ? "\nRemember to archive the thread!" : "")}", ephemeral: true);
+            if (thread != null)
+            {
+                await msg.FollowupAsync("Archiving the thread");
+                await thread.ModifyAsync(props => props.Archived = true);
+            }
+
+            await msg.FollowupAsync($"Successfully finished syncing channel <#{channel.Id}> in {sw.Elapsed:hh\\:mm\\:ss}!", ephemeral: true);
         }
 
         public static async Task<HtmlNode> LoadHtml(Uri sourceUrl)

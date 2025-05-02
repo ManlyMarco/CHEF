@@ -27,9 +27,16 @@ namespace CHEF.Components.Misc
             {
                 try
                 {
-                    if (channel == null) channel = (ITextChannel)eventArgs.Channel;
+                    if (channel == null)
+                    {
+                        channel = (ITextChannel)eventArgs.Channel;
+                        await eventArgs.DeferAsync(true);
+                    }
+                    else
+                    {
+                        await eventArgs.RespondAsync($"Chika will say \"{text}\" in {channel.Mention}", ephemeral: true);
+                    }
 
-                    await eventArgs.RespondAsync($"Chika will say \"{text}\" in {channel.Mention}", ephemeral: true);
                     await channel.SendMessageAsync(text);
                 }
                 catch (Exception e)

@@ -14,7 +14,7 @@ public class PollDataStorage
     private static string _pollStoragePath;
     private static readonly Timer _DataStoreTimer = new(5000);
 
-    public static ConcurrentDictionary<ulong, PollData> Polls { get; } = new();
+    public static ConcurrentDictionary<string, PollData> Polls { get; } = new();
 
     public static async Task InitDataStorage()
     {
@@ -41,7 +41,7 @@ public class PollDataStorage
                 var polls = JsonSerializer.Deserialize<List<PollData>>(json);
                 if (polls == null) throw new InvalidDataException("Failed to deserialize poll data from file");
                 foreach (var poll in polls)
-                    Polls.AddOrUpdate(poll.ChannelId, poll, (_, _) => poll);
+                    Polls.AddOrUpdate(poll.PollId, poll, (_, _) => poll);
             }
             catch (Exception e)
             {

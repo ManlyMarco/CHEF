@@ -6,28 +6,55 @@ using System.Threading.Tasks;
 using CHEF.Extensions;
 using Discord;
 using Discord.Interactions;
+using Discord.Interactions.Builders;
 using Discord.WebSocket;
 
 namespace CHEF.Components.Polls;
 
-
 public class PollModule : InteractionModuleBase<SocketInteractionContext>
 {
-    // todo staff vote
+    static PollModule()
+    {
+        PollDataStorage.InitDataStorage().Wait();
+    }
+
+    private static bool UserIsStaff(IInteractionContext context) => context.User is SocketGuildUser user && user.GuildPermissions.ManageRoles;
+    private static IEnumerable<string> GetActivePollList(bool canSeeStaffOnly) => PollDataStorage.Polls.Values.Where(x => !x.Ended && (canSeeStaffOnly || !x.StaffOnly)).Select(x => x.PollId);
+
+    public class PollNameAutocompleteHandler : AutocompleteHandler
+    {
+        public override Task<AutocompletionResult> GenerateSuggestionsAsync(IInteractionContext context, IAutocompleteInteraction autocompleteInteraction, IParameterInfo parameter, IServiceProvider services)
+        {
+            var isStaff = UserIsStaff(context);
+            // max - 25 suggestions at a time (API limit)
+            var results = GetActivePollList(isStaff).Take(25);
+
+            return Task.FromResult(AutocompletionResult.FromSuccess(results.Select(x => new AutocompleteResult(x, x))));
+        }
+    }
+
     [SlashCommand("contest-vote", "Vote for an entry in a contest.")]
     [CommandContextType(InteractionContextType.Guild)]
-    public async Task Vote([Summary(description: "Name of the poll, see the event announcement")] string poll,
+    public async Task Vote([Summary(description: "Name of the poll"), Autocomplete(typeof(PollNameAutocompleteHandler))] string pollName,
                            [Summary(description: "Number of the entry to vote for")] ulong entry)
     {
-        if (!PollDataStorage.Polls.TryGetValue(poll, out var pollData))
+        var isStaff = UserIsStaff(Context);
+
+        if (!PollDataStorage.Polls.TryGetValue(pollName, out var pollData))
         {
-            await RespondAsync($":x: There is no poll named '{poll}'.\nCurrently running polls: {string.Join(", ", PollDataStorage.Polls.Values.Where(x => !x.Ended).Select(x => x.PollId))}", ephemeral: true);
+            await RespondAsync($":x: There is no poll named `{pollName}`.\nCurrently running polls: {string.Join(", ", GetActivePollList(isStaff))}", ephemeral: true);
             return;
         }
 
         if (pollData.Ended)
         {
-            await RespondAsync($":x: The poll named '{poll}' has ended on {pollData.EndTime.ToTimestampString()}. You cannot vote in it anymore.", ephemeral: true);
+            await RespondAsync($":x: The poll named `{pollName}` has ended on {pollData.EndTime.ToTimestampString()}. You cannot vote in it anymore.", ephemeral: true);
+            return;
+        }
+
+        if (!isStaff && pollData.StaffOnly)
+        {
+            await RespondAsync($":x: The poll named `{pollName}` is limited to staff only. You cannot vote in it.", ephemeral: true);
             return;
         }
 
@@ -46,35 +73,38 @@ public class PollModule : InteractionModuleBase<SocketInteractionContext>
         }
 
         pollData.Entries.Add(new PollEntry(userId, entry));
-        await RespondAsync($":white_check_mark: Your vote of {entry} was saved in poll named '{poll}'. Thank you for voting!", ephemeral: true);
+        PollDataStorage.TriggerDataStore();
+        await RespondAsync($":white_check_mark: Your vote of {entry} was saved in poll named `{pollName}`. Thank you for voting!", ephemeral: true);
     }
 
 
-    [SlashCommand("contest-poll-start", "")]
+    [SlashCommand("contest-poll-start", "Start a new poll. If a poll already exists, its entry count is updated but results stay.")]
     [CommandContextType(InteractionContextType.Guild)]
-    [RequireUserPermission(ChannelPermission.ManageMessages)]
-    public async Task StartContestPoll(string pollName, ulong entryCount)
+    [RequireUserPermission(ChannelPermission.CreateEvents)]
+    public async Task StartContestPoll([Summary(description: "Name of the poll"), Autocomplete(typeof(PollNameAutocompleteHandler))] string pollName, ulong entryCount, bool staffOnly)
     {
         if (PollDataStorage.Polls.TryGetValue(pollName, out var pollData) && !pollData.Ended)
         {
             pollData.SetEntryCount(entryCount);
-            await RespondAsync($":warning: Updated the poll named '{pollName}' to allow {entryCount} entries. If you wish to restart the poll, end it first.");
+            PollDataStorage.TriggerDataStore();
+            await RespondAsync($":warning: Updated the poll named `{pollName}` to allow {entryCount} entries. If you wish to restart the poll, end it first.");
             return;
         }
 
-        PollDataStorage.Polls[pollName] = new PollData(pollName, entryCount);
-        await RespondAsync($":white_check_mark: Started a poll named \n{pollName}\n with {entryCount} entries.{(pollData?.Ended == true ? " Old poll results were discarded." : "")}");
+        PollDataStorage.Polls[pollName] = new PollData(pollName, entryCount, staffOnly);
+        PollDataStorage.TriggerDataStore();
+        await RespondAsync($":white_check_mark: Started a poll named `{pollName}` with {entryCount} entries.");
     }
 
-    [SlashCommand("contest-poll-stats", "")]
+    [SlashCommand("contest-poll-stats", "Get results of a single poll.")]
     [CommandContextType(InteractionContextType.Guild)]
-    [RequireUserPermission(ChannelPermission.ManageMessages)]
-    public async Task GetContestPollStats(string pollName)
+    [RequireUserPermission(ChannelPermission.CreateEvents)]
+    public async Task GetContestPollStats([Summary(description: "Name of the poll"), Autocomplete(typeof(PollNameAutocompleteHandler))] string pollName)
     {
         if (PollDataStorage.Polls.TryGetValue(pollName, out var pollData))
         {
             var sb = new StringBuilder();
-            sb.AppendLine($":information_source: Poll named '{pollName}' with {pollData.EntryCount} entries was started at {pollData.StartTime.ToTimestampString()} and ended at {(pollData.Ended ? pollData.EndTime.ToTimestampString() : "NOT ENDED YET")}. There were {pollData.Entries.Count} votes in total.");
+            sb.AppendLine($":information_source: Poll named `{pollName}` with {pollData.EntryCount} entries was started at {pollData.StartTime.ToTimestampString()} and ended at {(pollData.Ended ? pollData.EndTime.ToTimestampString() : "NOT ENDED YET")}. There were {pollData.Entries.Count} votes in total.");
             // Count up votes for each entry and sort them from most to least votes
             pollData.Entries.GroupBy(x => x.Vote)
                     .Select(g => new { Entry = g.Key, Count = g.Count() })
@@ -90,41 +120,43 @@ public class PollModule : InteractionModuleBase<SocketInteractionContext>
         }
         else
         {
-            await RespondAsync($":x: No active or ended poll named '{pollName}' was found.");
+            await RespondAsync($":x: No active or ended poll named `{pollName}` was found.");
         }
     }
 
-    [SlashCommand("contest-poll-end", "")]
+    [SlashCommand("contest-poll-end", "End a poll. Prevents voting while keeping results.")]
     [CommandContextType(InteractionContextType.Guild)]
-    [RequireUserPermission(ChannelPermission.ManageMessages)]
-    public async Task EndContestPoll(string pollName)
+    [RequireUserPermission(ChannelPermission.CreateEvents)]
+    public async Task EndContestPoll([Summary(description: "Name of the poll"), Autocomplete(typeof(PollNameAutocompleteHandler))] string pollName)
     {
         if (PollDataStorage.Polls.TryGetValue(pollName, out var pollData))
         {
             pollData.End();
-            await RespondAsync($":white_check_mark: Ended the poll named '{pollName}'. The stats will be saved until a new poll is started in that channel.");
+            PollDataStorage.TriggerDataStore();
+            await RespondAsync($":white_check_mark: Ended the poll named `{pollName}`. The stats will be saved until a new poll is started in that channel.");
         }
         else
         {
-            await RespondAsync($":x: No active or ended poll named '{pollName}' was found.");
+            await RespondAsync($":x: No active or ended poll named `{pollName}` was found.");
         }
     }
 
-    [SlashCommand("contest-poll-delete", "")]
+    [SlashCommand("contest-poll-delete", "Delete a poll, including its results.")]
     [CommandContextType(InteractionContextType.Guild)]
-    [RequireUserPermission(ChannelPermission.ManageMessages)]
-    public async Task DeleteContestPoll(string pollName)
+    [RequireUserPermission(ChannelPermission.CreateEvents)]
+    public async Task DeleteContestPoll([Summary(description: "Name of the poll"), Autocomplete(typeof(PollNameAutocompleteHandler))] string pollName)
     {
-        // See if there's a poll in the channel
+        // See if there`s a poll in the channel
         if (PollDataStorage.Polls.Remove(pollName, out _))
-            await RespondAsync($":white_check_mark: Deleted the poll named '{pollName}' The stats were deleted and new messages will no longer be removed.");
+            await RespondAsync($":white_check_mark: Deleted the poll named `{pollName}` The stats were deleted and new messages will no longer be removed.");
         else
-            await RespondAsync($":x: No active or ended poll named '{pollName}' was found.");
+            await RespondAsync($":x: No active or ended poll named `{pollName}` was found.");
+        PollDataStorage.TriggerDataStore();
     }
 
-    [SlashCommand("contest-poll-list", "")]
+    [SlashCommand("contest-poll-list", "Get a list of all polls, open and closed.")]
     [CommandContextType(InteractionContextType.Guild)]
-    [RequireUserPermission(ChannelPermission.ManageMessages)]
+    [RequireUserPermission(ChannelPermission.CreateEvents)]
     public async Task ListContestPolls()
     {
         var sb = new StringBuilder();

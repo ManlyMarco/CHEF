@@ -19,6 +19,7 @@
   
   <ItemGroup>
     <Compile Remove="Components\CloudVisionOcr.cs" />
+    <Compile Remove="Components\ExampleModule.cs" />
     <Compile Remove="Components\Watcher\ImageParser.cs" />
   </ItemGroup>
   
@@ -38,6 +39,7 @@
   
   <ItemGroup>
     <None Include="Components\CloudVisionOcr.cs" />
+    <None Include="Components\ExampleModule.cs" />
     <None Include="Components\Watcher\ImageParser.cs" />
   </ItemGroup>
   

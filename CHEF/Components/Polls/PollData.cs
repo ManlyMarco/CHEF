@@ -9,15 +9,17 @@ namespace CHEF.Components.Polls;
 /// </summary>
 public class PollData
 {
-    public PollData(string pollId, ulong entryCount)
+    public PollData(string pollId, ulong entryCount, bool staffOnly)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(pollId);
         PollId = pollId;
+        StaffOnly = staffOnly;
         StartTime = DateTimeOffset.UtcNow;
         SetEntryCount(entryCount);
     }
 
     [JsonInclude] public string PollId { get; init; }
+    [JsonInclude] public bool StaffOnly { get; init; }
     [JsonInclude] public ulong EntryCount { get; private set; }
 
     [JsonInclude] public List<PollEntry> Entries { get; init; } = new();

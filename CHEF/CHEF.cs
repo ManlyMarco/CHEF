@@ -1,8 +1,13 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 using CHEF.Components;
+using CHEF.Components.Polls;
 using Discord;
+using Discord.Interactions;
 using Discord.WebSocket;
 
 namespace CHEF
@@ -33,7 +38,7 @@ namespace CHEF
         {
             var config = new DiscordSocketConfig
             {
-                MessageCacheSize = 100, 
+                MessageCacheSize = 100,
                 GatewayIntents = GatewayIntents.AllUnprivileged | GatewayIntents.MessageContent,
                 LogLevel = LogSeverity.Info
             };
@@ -54,7 +59,27 @@ namespace CHEF
         private async Task InitOnClientReady()
         {
             Logger.Init(_client);
-            await Task.CompletedTask;
+
+            //await DeleteAllCommands();
+
+            var interactionService = new InteractionService(_client);
+            await interactionService.AddModulesAsync(Assembly.GetExecutingAssembly(), null);
+            await interactionService.RegisterCommandsGloballyAsync();
+            _client.InteractionCreated += async interaction =>
+            {
+                var ctx = new SocketInteractionContext(_client, interaction);
+                await interactionService.ExecuteCommandAsync(ctx, null);
+            };
+        }
+
+        private async Task DeleteAllCommands()
+        {
+            IEnumerable<SocketApplicationCommand> cmds = await _client.GetGlobalApplicationCommandsAsync();
+            foreach (var guild in _client.Guilds)
+                cmds = cmds.Concat(await guild.GetApplicationCommandsAsync());
+
+            foreach (var cmd in cmds)
+                await cmd.DeleteAsync();
         }
 
         private async Task UniqueInitOnClientReady()

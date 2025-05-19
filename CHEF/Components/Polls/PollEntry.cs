@@ -8,14 +8,14 @@ namespace CHEF.Components.Polls;
 /// </summary>
 public class PollEntry
 {
-    public PollEntry(ulong userId, ulong vote)
+    public PollEntry(ulong userId, long vote)
     {
         ArgumentOutOfRangeException.ThrowIfZero(userId);
-        ArgumentOutOfRangeException.ThrowIfZero(vote);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(vote);
         UserId = userId;
         Vote = vote;
     }
 
     [JsonInclude] public ulong UserId { get; init; }
-    [JsonInclude] public ulong Vote { get; init; }
+    [JsonInclude] public long Vote { get; init; }
 }

@@ -16,7 +16,7 @@ public class ContestVoteCommand : InteractionModuleBase<SocketInteractionContext
     [CommandContextType(InteractionContextType.Guild), RequireContext(ContextType.Guild)]
     [SlashCommand("contest-vote", "Vote for an entry in a contest.")]
     public async Task Vote([Summary(description: "Name of the poll"), Autocomplete(typeof(PollNameAutocompleteHandler))] string pollName,
-                           [Summary(description: "Number of the entry to vote for")] ulong entry)
+                           [Summary(description: "Number of the entry to vote for")] long entry)
     {
         var isStaff = UserIsStaff(Context);
 

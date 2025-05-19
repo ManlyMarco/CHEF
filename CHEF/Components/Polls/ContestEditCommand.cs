@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using CHEF.Extensions;
 using Discord;
 using Discord.Interactions;
-using Microsoft.Extensions.Primitives;
 
 namespace CHEF.Components.Polls;
 
@@ -21,8 +20,14 @@ public class ContestEditCommand : InteractionModuleBase<SocketInteractionContext
     }
 
     [SlashCommand("start", "Start a new poll. If a poll already exists, its entry count is updated but results stay.")]
-    public async Task StartContestPoll([Summary(description: "Name of the poll"), Autocomplete(typeof(PollNameAutocompleteHandler))] string pollName, ulong entryCount, bool staffOnly)
+    public async Task StartContestPoll([Summary(description: "Name of the poll"), Autocomplete(typeof(PollNameAutocompleteHandler))] string pollName, long entryCount, bool staffOnly)
     {
+        if (entryCount < 2)
+        {
+            await RespondAsync($":x: entryCount has to be 2 or higher.");
+            return;
+        }
+
         if (PollDataStorage.Polls.TryGetValue(pollName, out var pollData) && !pollData.Ended)
         {
             pollData.SetEntryCount(entryCount);

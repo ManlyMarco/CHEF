@@ -9,7 +9,7 @@ namespace CHEF.Components.Polls;
 /// </summary>
 public class PollData
 {
-    public PollData(string pollId, ulong entryCount, bool staffOnly)
+    public PollData(string pollId, long entryCount, bool staffOnly)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(pollId);
         PollId = pollId;
@@ -20,16 +20,16 @@ public class PollData
 
     [JsonInclude] public string PollId { get; init; }
     [JsonInclude] public bool StaffOnly { get; init; }
-    [JsonInclude] public ulong EntryCount { get; private set; }
+    [JsonInclude] public long EntryCount { get; private set; }
 
     [JsonInclude] public List<PollEntry> Entries { get; init; } = new();
     [JsonInclude] public DateTimeOffset StartTime { get; init; }
     [JsonInclude] public DateTimeOffset EndTime { get; private set; }
     [JsonIgnore] public bool Ended => EndTime != default;
 
-    public void SetEntryCount(ulong entryCount)
+    public void SetEntryCount(long entryCount)
     {
-        ArgumentOutOfRangeException.ThrowIfZero(entryCount);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(entryCount);
         EntryCount = entryCount;
     }
 

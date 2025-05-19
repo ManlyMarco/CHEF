@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using Discord.WebSocket;
 
@@ -35,7 +37,22 @@ namespace CHEF
                 try
                 {
                     var user = arg.User.GlobalName;
-                    Log($"{user} called command {arg.CommandName} with args {string.Join(' ', arg.Data.Options.Select(x => $"{x.Name}=[{x.Value}]"))}");
+                    var sb = new StringBuilder().Append(user).Append(" called command `").Append(arg.CommandName);
+
+                    PrintOptions(arg.Data.Options);
+                    void PrintOptions(IReadOnlyCollection<SocketSlashCommandDataOption> socketSlashCommandDataOptions)
+                    {
+                        foreach (var option in socketSlashCommandDataOptions)
+                        {
+                            sb.Append($" {option.Name}=[{option.Value}]");
+                            if(option.Options.Count > 0)
+                                PrintOptions(option.Options);
+                        }
+                    }
+
+                    sb.Append('`');
+
+                    Log(sb.ToString());
                 }
                 catch (Exception e)
                 {
@@ -56,7 +73,7 @@ namespace CHEF
             try
             {
                 if (log.Contains("Exception", StringComparison.OrdinalIgnoreCase)) log = $"```as\n{log}```";
-                Task.Run(async () => { await _reportTo.SendMessageAsync(log); });
+                Task.Run(async () => { await _reportTo.SendMessageAsync(log.Length > 1500 ? log.Substring(0, 1500) : log); });
             }
             catch (Exception ex)
             {

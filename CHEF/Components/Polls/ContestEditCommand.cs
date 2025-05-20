@@ -174,7 +174,7 @@ public static class TableCreator
             {
                 sb.Append(column == 0 ? '║' : '│');
                 sb.Append(' ');
-                sb.Append(contents[column, row].PadLeft(colWidths[column]));
+                sb.Append(contents[column, row].PadRight(colWidths[column]));
                 sb.Append(' ');
                 if (column + 1 == contents.GetLength(0))
                     sb.Append('║');

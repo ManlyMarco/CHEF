@@ -1,8 +1,11 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 using CHEF.Components;
 using Discord;
+using Discord.Interactions;
 using Discord.WebSocket;
 
 namespace CHEF
@@ -33,8 +36,8 @@ namespace CHEF
         {
             var config = new DiscordSocketConfig
             {
-                MessageCacheSize = 100, 
-                GatewayIntents = GatewayIntents.AllUnprivileged | GatewayIntents.MessageContent,
+                MessageCacheSize = 100,
+                GatewayIntents = GatewayIntents.AllUnprivileged & ~(GatewayIntents.GuildScheduledEvents | GatewayIntents.GuildInvites) | GatewayIntents.MessageContent,
                 LogLevel = LogSeverity.Info
             };
             _client = new DiscordSocketClient(config);
@@ -54,7 +57,30 @@ namespace CHEF
         private async Task InitOnClientReady()
         {
             Logger.Init(_client);
-            await Task.CompletedTask;
+
+            //await DeleteAllCommands();
+
+            var interactionService = new InteractionService(_client);
+            interactionService.Log += Log;
+            await interactionService.AddModulesAsync(Assembly.GetExecutingAssembly(), null);
+            await interactionService.RegisterCommandsGloballyAsync();
+            _client.InteractionCreated += async interaction =>
+            {
+                var ctx = new SocketInteractionContext(_client, interaction);
+                var result = await interactionService.ExecuteCommandAsync(ctx, null);
+                if (!result.IsSuccess)
+                    await ctx.Interaction.RespondAsync($":x: Error: {result.Error} - {result.ErrorReason}", ephemeral: true);
+            };
+        }
+
+        private async Task DeleteAllCommands()
+        {
+            IEnumerable<SocketApplicationCommand> cmds = await _client.GetGlobalApplicationCommandsAsync();
+            foreach (var guild in _client.Guilds)
+                cmds = cmds.Concat(await guild.GetApplicationCommandsAsync());
+
+            foreach (var cmd in cmds)
+                await cmd.DeleteAsync();
         }
 
         private async Task UniqueInitOnClientReady()

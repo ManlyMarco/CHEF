@@ -515,12 +515,12 @@ namespace CHEF.Components.Watcher
 
         private static async Task AddReaction(SocketUserMessage msg, string[] emoteStrings)
         {
-            SocketTextChannel channel = (SocketTextChannel)msg.Channel;
+            if (msg.Channel is not SocketTextChannel channel) return;
 
             Emote resultEmote = null;
             foreach (var emoteString in emoteStrings)
             {
-                if (Emote.TryParse(emoteString, out var em) && !channel.Guild.Emotes.All(x => x.Id != em.Id))
+                if (Emote.TryParse(emoteString, out var em) && channel.Guild.Emotes.Any(x => x.Id == em.Id))
                 {
                     resultEmote = em;
                     break;

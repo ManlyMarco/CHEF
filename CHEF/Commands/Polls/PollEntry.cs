@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Text.Json.Serialization;
 
-namespace CHEF.Components.Polls;
+namespace CHEF.Commands.Polls;
 
 /// <summary>
 /// Holds user id and their vote

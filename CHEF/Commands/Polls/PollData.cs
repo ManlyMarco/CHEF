@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
-namespace CHEF.Components.Polls;
+namespace CHEF.Commands.Polls;
 
 /// <summary>
 /// Holds poll data for a channel

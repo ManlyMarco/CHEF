@@ -4,49 +4,37 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using CHEF.Extensions;
 using Discord;
+using Discord.Interactions;
 using Discord.WebSocket;
 using Html2Markdown;
 using HtmlAgilityPack;
 
-namespace CHEF.Components
+namespace CHEF.Commands;
+
+public class WikiFaqsSynchronizer : InteractionModuleBase<SocketInteractionContext>
 {
-    public class WikiFaqsSynchronizer : Component
+    [SlashCommand("sync-wiki-to-faq", "Post all Q/A from wiki to a channel, remove old Q/A posts in channel if any.")]
+    [CommandContextType(InteractionContextType.Guild), RequireContext(ContextType.Guild)]
+    [DefaultMemberPermissions(GuildPermission.Administrator), RequireUserPermission(GuildPermission.Administrator)]
+    public async Task SyncFaqChannel([Summary(description: "FAQ channel.")] ITextChannel channel,
+                                     [Summary(description: "URL to the wiki page.")] string url,
+                                     [Summary(description: "If set to 'true', the command will simulate the task without making any changes.")] bool simulate)
     {
-        private const string SyncWikiToFaq = "sync-wiki-to-faq";
-
-        public WikiFaqsSynchronizer(DiscordSocketClient client) : base(client)
+        try
         {
-        }
-
-        public override async Task SetupAsync()
-        {
-            var cmd = await Client.CreateGlobalApplicationCommandAsync(new SlashCommandBuilder().WithName(SyncWikiToFaq)
-                                                                                                .WithDescription("Post all Q/A from wiki to a channel, remove old Q/A posts in channel if any")
-                                                                                                .AddOption("channel", ApplicationCommandOptionType.Channel, "FAQ channel", true)
-                                                                                                .AddOption("url", ApplicationCommandOptionType.String, "URL to the wiki page", true)
-                                                                                                .AddOption("simulate", ApplicationCommandOptionType.Boolean, "If set to 'true', the command will simulate the task without making any changes", true)
-                                                                                                .WithDefaultMemberPermissions(GuildPermission.Administrator)
-                                                                                                .WithContextTypes(InteractionContextType.Guild)
-                                                                                                .Build());
-            Client.ListenToSlashCommand(cmd, SyncFaqChannel);
-        }
-
-        private async Task SyncFaqChannel(SocketSlashCommand msg, ITextChannel channel, string url, bool simulate)
-        {
-            await msg.RespondAsync($"Rewriting {channel.Mention} to match contents of {url}");
+            await RespondAsync($"Rewriting {channel.Mention} to match contents of {url}");
 
             var thread = channel as SocketThreadChannel;
             if (thread != null && thread.IsArchived)
             {
-                await msg.FollowupAsync("Unarchiving the thread");
+                await FollowupAsync("Unarchiving the thread");
                 await thread.ModifyAsync(props => props.Archived = false);
             }
 
             var sw = Stopwatch.StartNew();
             if (simulate)
-                await msg.FollowupAsync($"Running with simulate flag - Simulating the task, nothing will actually get changed in the target channel.", ephemeral: true);
+                await FollowupAsync($"Running with simulate flag - Simulating the task, nothing will actually get changed in the target channel.", ephemeral: true);
 
             Uri.TryCreate(url?.Trim('<', '>', ' '), UriKind.Absolute, out var sourceUrl);
             if (sourceUrl == null)
@@ -71,7 +59,7 @@ namespace CHEF.Components
 
             foreach (var message in oldMessages)
             {
-                if (message.Author.Id != Client.CurrentUser.Id)
+                if (message.Author.Id != Context.Client.CurrentUser.Id)
                 {
                     throw new Exception($"Channel <#{channel.Id}> contains a message that doesn't belong to me: {message.GetJumpUrl()}");
                 }
@@ -108,15 +96,17 @@ namespace CHEF.Components
             }
             catch (Exception e)
             {
-                throw new Exception($"Failed to parse the wiki page at {sourceUrl}\nMake sure the URL is pointing at a FAQ page on the hgames wiki, and that the page is in correct format.\nError message: " + e.Message);
+                throw new Exception(
+                    $"Failed to parse the wiki page at {sourceUrl}\nMake sure the URL is pointing at a FAQ page on the hgames wiki, and that the page is in correct format.\nError message: " + e.Message);
             }
 
             if (newMessageContents.Count < 5)
             {
-                throw new Exception($"Too few QA lines found in {newMessageContents.Count}, aborting.\nMake sure the URL is pointing at a FAQ page on the hgames wiki, and that the page is in correct format.");
+                throw new Exception(
+                    $"Too few QA lines found in {newMessageContents.Count}, aborting.\nMake sure the URL is pointing at a FAQ page on the hgames wiki, and that the page is in correct format.");
             }
 
-            await msg.FollowupAsync($"Deleting {oldMessages.Count} of my old messages in channel <#{channel.Id}>", ephemeral: true);
+            await FollowupAsync($"Deleting {oldMessages.Count} of my old messages in channel <#{channel.Id}>", ephemeral: true);
             foreach (var message in oldMessages)
             {
                 if (!simulate)
@@ -126,7 +116,7 @@ namespace CHEF.Components
                 }
             }
 
-            await msg.FollowupAsync($"Spawning {newMessageContents.Count} new messages in channel <#{channel.Id}>", ephemeral: true);
+            await FollowupAsync($"Spawning {newMessageContents.Count} new messages in channel <#{channel.Id}>", ephemeral: true);
             foreach (var messageContent in newMessageContents)
             {
                 var sanitizedMessageContent = Regex.Replace(Regex.Replace(messageContent, @"\[.+?\]\((\S+)\)", "<$1>"), @"(\r?\n *)+", "\r\n");
@@ -139,8 +129,6 @@ namespace CHEF.Components
                 }
             }
 
-
-
             if (!simulate)
             {
                 // Remove the "message was pinned" notifications to clean things up
@@ -152,19 +140,26 @@ namespace CHEF.Components
 
             if (thread != null)
             {
-                await msg.FollowupAsync("Archiving the thread");
+                await FollowupAsync("Archiving the thread");
                 await thread.ModifyAsync(props => props.Archived = true);
             }
 
-            await msg.FollowupAsync($"Successfully finished syncing channel <#{channel.Id}> in {sw.Elapsed:hh\\:mm\\:ss}!", ephemeral: true);
-        }
+            await FollowupAsync($"Successfully finished syncing channel <#{channel.Id}> in {sw.Elapsed:hh\\:mm\\:ss}!", ephemeral: true);
 
-        public static async Task<HtmlNode> LoadHtml(Uri sourceUrl)
-        {
-            var web = new HtmlWeb();
-            var htmlDoc = await web.LoadFromWebAsync(sourceUrl.ToString());
-            var docNode = htmlDoc.DocumentNode;
-            return docNode;
         }
+        catch (Exception exception)
+        {
+            Console.WriteLine(exception);
+
+            await RespondAsync($":x: Failed to sync channel <#{channel.Id}> with error: {exception.Message}", ephemeral: true);
+        }
+    }
+
+    public static async Task<HtmlNode> LoadHtml(Uri sourceUrl)
+    {
+        var web = new HtmlWeb();
+        var htmlDoc = await web.LoadFromWebAsync(sourceUrl.ToString());
+        var docNode = htmlDoc.DocumentNode;
+        return docNode;
     }
 }

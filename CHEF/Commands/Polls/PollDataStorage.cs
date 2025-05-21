@@ -7,7 +7,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using System.Timers;
 
-namespace CHEF.Components.Polls;
+namespace CHEF.Commands.Polls;
 
 public class PollDataStorage
 {

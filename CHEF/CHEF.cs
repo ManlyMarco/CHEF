@@ -37,12 +37,12 @@ namespace CHEF
             var config = new DiscordSocketConfig
             {
                 MessageCacheSize = 100,
-                GatewayIntents = GatewayIntents.AllUnprivileged | GatewayIntents.MessageContent,
+                GatewayIntents = GatewayIntents.AllUnprivileged & ~(GatewayIntents.GuildScheduledEvents | GatewayIntents.GuildInvites) | GatewayIntents.MessageContent,
                 LogLevel = LogSeverity.Info
             };
             _client = new DiscordSocketClient(config);
             _client.Log += Log;
-            
+
             _client.Ready += InitOnClientReady;
             _client.Ready += UniqueInitOnClientReady;
 
@@ -68,7 +68,7 @@ namespace CHEF
             {
                 var ctx = new SocketInteractionContext(_client, interaction);
                 var result = await interactionService.ExecuteCommandAsync(ctx, null);
-                if(!result.IsSuccess)
+                if (!result.IsSuccess)
                     await ctx.Interaction.RespondAsync($":x: Error: {result.Error} - {result.ErrorReason}", ephemeral: true);
             };
         }

@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using Discord;
 using Discord.Interactions;
 
-namespace CHEF.Components.Polls;
+namespace CHEF.Commands.Polls;
 
 public class PollNameAutocompleteHandler : AutocompleteHandler
 {

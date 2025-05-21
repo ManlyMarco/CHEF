@@ -6,7 +6,7 @@ using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
 
-namespace CHEF.Components.Polls;
+namespace CHEF.Commands.Polls;
 
 public class ContestVoteCommand : InteractionModuleBase<SocketInteractionContext>
 {

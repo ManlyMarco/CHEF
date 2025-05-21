@@ -7,7 +7,7 @@ using CHEF.Extensions;
 using Discord;
 using Discord.Interactions;
 
-namespace CHEF.Components.Polls;
+namespace CHEF.Commands.Polls;
 
 [Group("contest-edit", "Start/end/list active polls.")]
 [CommandContextType(InteractionContextType.Guild), RequireContext(ContextType.Guild)]

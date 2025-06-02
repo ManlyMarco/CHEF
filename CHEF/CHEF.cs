@@ -71,6 +71,7 @@ namespace CHEF
                 if (!result.IsSuccess)
                     await ctx.Interaction.RespondAsync($":x: Error: {result.Error} - {result.ErrorReason}", ephemeral: true);
             };
+            _client.Ready -= InitOnClientReady;
         }
 
         private async Task DeleteAllCommands()

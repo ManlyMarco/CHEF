@@ -9,7 +9,7 @@ public class MiscCommands : InteractionModuleBase<SocketInteractionContext>
 {
     [SlashCommand("chika-say", "Become a skinwalker and make chika say something.")]
     [CommandContextType(InteractionContextType.Guild), RequireContext(ContextType.Guild)]
-    [DefaultMemberPermissions(GuildPermission.ManageChannels), RequireUserPermission(GuildPermission.ManageChannels)]
+    [DefaultMemberPermissions(GuildPermission.ManageChannels), RequireUserPermission(GuildPermission.ViewChannel)]
     public async Task ChikaSay([Summary(description: "What to say.")] string text,
                                [Summary(description: "Channel to speak in. Speaks in current channel by default.")] ITextChannel channel = null)
     {

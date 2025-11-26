@@ -17,7 +17,7 @@ namespace CHEF.Components
         private Timer _timer;
 
         private bool _running;
-        private static Regex _githubRegex = new(@"(https://github\.com/\w+/\w+/releases(/tag/[\w\.\-,\d]+)?)", RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        private static Regex _gitRegex = new(@"(https://(github\.com|gitgoon\.dev)/\w+/\w+/releases(/tag/[\w\.\-,\d]+)?)", RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
         // check for updates if the post has one of these tags
         private static string[] _watchedTags = { "plugins", "Tools", "Mods/Plugin pack" };
@@ -62,7 +62,17 @@ namespace CHEF.Components
             async Task Log(string msg)
             {
                 Logger.Log(msg);
-                if (replyToMessage != null) await replyToMessage.ReplyAsync(msg);
+                if (replyToMessage != null)
+                {
+                    try
+                    {
+                        await replyToMessage.ReplyAsync(msg.Length >= 2000 ? msg.Substring(0, 2000) : msg);
+                    }
+                    catch (Exception e)
+                    {
+                        Logger.Log("Failed to send log message: " + e);
+                    }
+                }
             }
 
             if (_running)
@@ -88,7 +98,7 @@ namespace CHEF.Components
                                           .Where(t => !t.IsLocked && t.ParentChannelId == channel.Id)
                                           .Where(t => watchedTagIds.Intersect(t.AppliedTags).Any())
                                           .ToList();
-                    
+
                     await Log($"[ModForumUpdater] Running update in channel [{channel.Name}], {modForumThreads.Count} forum threads to process");
 
                     foreach (var thread in modForumThreads)
@@ -97,12 +107,12 @@ namespace CHEF.Components
                         await Task.Delay(100);
                         var allReleaseLinks = await thread.GetMessagesAsync(5)
                                                           .SelectMany(x => x.ToAsyncEnumerable())
-                                                          .Select(m => _githubRegex.Match(m.Content))
+                                                          .Select(m => _gitRegex.Match(m.Content))
                                                           .Where(x => x.Success)
                                                           .Select(x => x.Groups[1].Value)
                                                           .ToListAsync();
 
-                        // No github links, nothing to do
+                        // No hub or goon links, nothing to do
                         if (allReleaseLinks.Count == 0) continue;
 
                         var mostRecentlyPostedReleaseLink = allReleaseLinks.First();
@@ -115,7 +125,57 @@ namespace CHEF.Components
                         var latestReleseLink = mostRecentlyPostedReleaseLink.Substring(0, i) + "/releases/latest";
                         var actualLatestReleseLink = await GetFinalRedirect(latestReleseLink);
 
-                        if (actualLatestReleseLink.EndsWith("/latest"))
+                        if (latestReleseLink.Contains("github.com/", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var latestGoonLink = Regex.Replace(latestReleseLink, @"github\.com/", @"gitgoon.dev/", RegexOptions.IgnoreCase);
+                            var actualLatestGoonLink = await GetFinalRedirect(latestGoonLink);
+                            if (LinkPointsToReleaseTag(actualLatestGoonLink))
+                            {
+                                if (LinkPointsToReleaseTag(actualLatestReleseLink))
+                                {
+                                    // Figure out which one is newer by comparing the tag names
+                                    // Example link: https://gitgoon.dev/IllusionMods/Ahegao/releases/tag/v2.0.0.1
+                                    var githubTag = Regex.Match(actualLatestReleseLink, @"/releases/tag/([\w\.\-,\d]+)$", RegexOptions.IgnoreCase);
+                                    var goonTag = Regex.Match(actualLatestGoonLink, @"/releases/tag/([\w\.\-,\d]+)$", RegexOptions.IgnoreCase);
+                                    if (githubTag.Success && goonTag.Success)
+                                    {
+                                        var githubTagName = githubTag.Groups[1].Value;
+                                        var goonTagName = goonTag.Groups[1].Value;
+                                        // Use Version class to compare version numbers
+                                        bool githubParsed = Version.TryParse(githubTagName.TrimStart('v', 'r'), out var githubVersion);
+                                        bool goonParsed = Version.TryParse(goonTagName.TrimStart('v', 'r'), out var goonVersion);
+
+                                        // Handle tags that are just a single number (e.g., "2")
+                                        if (!githubParsed && int.TryParse(githubTagName.TrimStart('v', 'r'), out var githubInt))
+                                        {
+                                            githubVersion = new Version(githubInt, 0);
+                                            githubParsed = true;
+                                        }
+                                        if (!goonParsed && int.TryParse(goonTagName.TrimStart('v', 'r'), out var goonInt))
+                                        {
+                                            goonVersion = new Version(goonInt, 0);
+                                            goonParsed = true;
+                                        }
+
+                                        if (githubParsed && goonParsed)
+                                        {
+                                            actualLatestReleseLink = githubVersion > goonVersion ? actualLatestReleseLink : actualLatestGoonLink;
+                                        }
+                                        else
+                                        {
+                                            // Fallback to string comparison if version parsing fails (works for repos using date)
+                                            actualLatestReleseLink = string.Compare(githubTagName, goonTagName, StringComparison.OrdinalIgnoreCase) >= 0
+                                                ? actualLatestReleseLink
+                                                : actualLatestGoonLink;
+                                        }
+                                    }
+                                }
+                                else
+                                    actualLatestReleseLink = actualLatestGoonLink;
+                            }
+                        }
+
+                        if (!LinkPointsToReleaseTag(actualLatestReleseLink))
                         {
                             await Log($"[ModForumUpdater] Failed to get redirect for <{actualLatestReleseLink}>");
                         }
@@ -142,7 +202,12 @@ namespace CHEF.Components
                 _running = false;
             }
         }
-        
+
+        private static bool LinkPointsToReleaseTag(string actualLatestGoonLink)
+        {
+            return !string.IsNullOrWhiteSpace(actualLatestGoonLink) && !actualLatestGoonLink.EndsWith("/latest");
+        }
+
         private static async Task<List<RestThreadChannel>> GetAllThreads(SocketForumChannel channel)
         {
             var threads = (await channel.GetActiveThreadsAsync()).ToList();

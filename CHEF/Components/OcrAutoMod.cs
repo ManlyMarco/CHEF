@@ -17,7 +17,11 @@ namespace CHEF.Components
     /// </summary>
     public class OcrAutoMod : Component
     {
-        private static readonly HttpClient _httpClient = new HttpClient();
+        private static readonly HttpClient _httpClient = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(30) // Timeout for image downloads
+        };
+        private const long MaxImageSizeBytes = 10 * 1024 * 1024; // 10MB max
         private TesseractEngine _ocrEngine;
         private const string TessDataPath = "tessdata";
         
@@ -131,9 +135,17 @@ namespace CHEF.Components
 
         private bool IsImageAttachment(Attachment attachment)
         {
-            var extension = Path.GetExtension(attachment.Url.Split('?')[0]).ToLowerInvariant();
-            return extension == ".png" || extension == ".jpg" || extension == ".jpeg" || 
-                   extension == ".gif" || extension == ".webp" || extension == ".bmp";
+            try
+            {
+                var uri = new Uri(attachment.Url);
+                var extension = Path.GetExtension(uri.AbsolutePath).ToLowerInvariant();
+                return extension == ".png" || extension == ".jpg" || extension == ".jpeg" || 
+                       extension == ".gif" || extension == ".webp" || extension == ".bmp";
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private async Task ProcessImageAsync(SocketGuildUser member, SocketUserMessage message, 
@@ -141,12 +153,28 @@ namespace CHEF.Components
         {
             try
             {
-                // Download image
+                // Download image with size validation
                 byte[] imageBytes;
-                using (var response = await _httpClient.GetAsync(imageUrl))
+                using (var response = await _httpClient.GetAsync(imageUrl, HttpCompletionOption.ResponseHeadersRead))
                 {
                     if (!response.IsSuccessStatusCode) return;
+                    
+                    // Check content length to avoid downloading excessively large images
+                    if (response.Content.Headers.ContentLength.HasValue && 
+                        response.Content.Headers.ContentLength.Value > MaxImageSizeBytes)
+                    {
+                        Logger.Log($"OCR AutoMod: Skipping image from {member.Username} - too large ({response.Content.Headers.ContentLength.Value} bytes)");
+                        return;
+                    }
+                    
                     imageBytes = await response.Content.ReadAsByteArrayAsync();
+                    
+                    // Double-check size after download
+                    if (imageBytes.Length > MaxImageSizeBytes)
+                    {
+                        Logger.Log($"OCR AutoMod: Skipping image from {member.Username} - too large ({imageBytes.Length} bytes)");
+                        return;
+                    }
                 }
 
                 // Perform OCR
@@ -199,8 +227,16 @@ namespace CHEF.Components
                     }
                     if (isExemptChannel) continue;
 
-                    // Prepare text for checking
-                    string cleanedText = ocrText.Replace("\n", "").Replace("\r", "").ToLowerInvariant();
+                    // Prepare text for checking - normalize whitespace and case
+                    string cleanedText = ocrText
+                        .Replace("\n", " ")
+                        .Replace("\r", " ")
+                        .Replace("\t", " ")
+                        .ToLowerInvariant()
+                        .Trim();
+                    
+                    // Remove multiple spaces
+                    cleanedText = System.Text.RegularExpressions.Regex.Replace(cleanedText, @"\s+", " ");
 
                     // Apply allow list
                     foreach (var allowedWord in rule.AllowList)
@@ -276,14 +312,14 @@ namespace CHEF.Components
                                     Logger.Log($"OCR AutoMod: Failed to delete message: {e.Message}");
                                 }
 
-                                // Try to notify user via DM
+                                // Try to notify user via DM (without exposing OCR text)
                                 try
                                 {
                                     var dmChannel = await member.CreateDMChannelAsync();
                                     var embed = new EmbedBuilder()
                                         .WithTitle("AutoMod Alert")
-                                        .WithDescription(action.CustomMessage.GetValueOrDefault() ?? "Your message violated AutoMod rules")
-                                        .AddField("OCR Detected Text", ocrText.Length > 1000 ? ocrText.Substring(0, 1000) + "..." : ocrText)
+                                        .WithDescription(action.CustomMessage.GetValueOrDefault() ?? "Your message violated AutoMod rules and was removed.")
+                                        .AddField("Reason", "Image content detected by OCR scanner")
                                         .WithColor(Color.Red)
                                         .WithTimestamp(DateTimeOffset.Now)
                                         .Build();
@@ -351,6 +387,10 @@ namespace CHEF.Components
 
         public override void Dispose()
         {
+            // Unregister event handlers to prevent memory leaks
+            Client.MessageReceived -= OnMessageReceived;
+            Client.MessageUpdated -= OnMessageUpdated;
+            
             _ocrEngine?.Dispose();
             base.Dispose();
         }

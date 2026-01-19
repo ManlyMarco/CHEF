@@ -21,6 +21,7 @@ namespace CHEF.Components
         {
             Timeout = TimeSpan.FromSeconds(30) // Timeout for image downloads
         };
+        private static readonly Regex MultipleSpacesRegex = new Regex(@"\s+", RegexOptions.Compiled);
         private const long MaxImageSizeBytes = 10 * 1024 * 1024; // 10MB max
         private TesseractEngine _ocrEngine;
         private const string TessDataPath = "tessdata";
@@ -153,9 +154,17 @@ namespace CHEF.Components
         {
             try
             {
+                // Validate URL to prevent SSRF attacks
+                if (!Uri.TryCreate(imageUrl, UriKind.Absolute, out var uri) || 
+                    (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+                {
+                    Logger.Log($"OCR AutoMod: Invalid or non-HTTP(S) image URL: {imageUrl}");
+                    return;
+                }
+                
                 // Download image with size validation
                 byte[] imageBytes;
-                using (var response = await _httpClient.GetAsync(imageUrl, HttpCompletionOption.ResponseHeadersRead))
+                using (var response = await _httpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead))
                 {
                     if (!response.IsSuccessStatusCode) return;
                     
@@ -199,33 +208,12 @@ namespace CHEF.Components
                     if (rule.TriggerType == AutoModTriggerType.MentionSpam || 
                         rule.TriggerType == AutoModTriggerType.Spam) continue;
 
-                    // Check if member has exempt role
-                    var hasExemptRole = false;
-                    foreach (SocketRole exemptRole in rule.ExemptRoles)
-                    {
-                        foreach (SocketRole memberRole in member.Roles)
-                        {
-                            if (memberRole.Id == exemptRole.Id)
-                            {
-                                hasExemptRole = true;
-                                break;
-                            }
-                        }
-                        if (hasExemptRole) break;
-                    }
-                    if (hasExemptRole) continue;
+                    // Check if member has exempt role (optimized with HashSet)
+                    var exemptRoleIds = rule.ExemptRoles.Select(r => r.Id).ToHashSet();
+                    if (member.Roles.Any(role => exemptRoleIds.Contains(role.Id))) continue;
 
-                    // Check if channel is exempt  
-                    var isExemptChannel = false;
-                    foreach (SocketGuildChannel exemptChannel in rule.ExemptChannels)
-                    {
-                        if (channel.Id == exemptChannel.Id)
-                        {
-                            isExemptChannel = true;
-                            break;
-                        }
-                    }
-                    if (isExemptChannel) continue;
+                    // Check if channel is exempt (optimized with LINQ)
+                    if (rule.ExemptChannels.Any(exemptChannel => channel.Id == exemptChannel.Id)) continue;
 
                     // Prepare text for checking - normalize whitespace and case
                     string cleanedText = ocrText
@@ -235,8 +223,8 @@ namespace CHEF.Components
                         .ToLowerInvariant()
                         .Trim();
                     
-                    // Remove multiple spaces
-                    cleanedText = System.Text.RegularExpressions.Regex.Replace(cleanedText, @"\s+", " ");
+                    // Remove multiple spaces using compiled regex
+                    cleanedText = MultipleSpacesRegex.Replace(cleanedText, " ");
 
                     // Apply allow list
                     foreach (var allowedWord in rule.AllowList)

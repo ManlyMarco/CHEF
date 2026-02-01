@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using CHEF.Commands;
 using CHEF.Extensions;
 using Discord;
 using Discord.WebSocket;
@@ -30,16 +31,63 @@ namespace CHEF.Components.Watcher
         {
             ReadCanHelpList();
 
-            Client.MessageReceived += msg =>
+            Client.MessageReceived += async msg =>
             {
                 try
                 {
-                    return MsgWatcherAsync(msg);
+                    // Autoban logic TODO: move out of here
+                    if (msg is SocketUserMessage userMsg && msg.Channel is SocketTextChannel textChannel && !msg.Author.IsBot && !msg.Author.IsWebhook)
+                    {
+                        var guildId = textChannel.Guild.Id;
+                        var channelId = textChannel.Id;
+                        if (AutobanSettingsManager.IsAutobanEnabled(guildId, channelId))
+                        {
+                            var guildUser = textChannel.Guild.GetUser(msg.Author.Id);
+                            if (guildUser != null && !guildUser.GuildPermissions.ModerateMembers)
+                            {
+                                await guildUser.BanAsync(reason: $"Autoban: Message in {textChannel.Name}");
+
+                                // Delete all messages from this user in all text channels from the last hour
+                                var now = DateTimeOffset.UtcNow;
+                                foreach (var chan in textChannel.Guild.TextChannels)
+                                {
+                                    try
+                                    {
+                                        var messages = await chan.GetMessagesAsync(limit: 100).FlattenAsync();
+                                        var toDelete = new List<IMessage>();
+                                        foreach (var m in messages)
+                                        {
+                                            if (m.Author.Id == guildUser.Id && (now - m.Timestamp).TotalMinutes <= 60)
+                                                toDelete.Add(m);
+                                        }
+                                        foreach (var m in toDelete)
+                                        {
+                                            try { await m.DeleteAsync(); } catch { /* ignore failures */ }
+                                        }
+                                    }
+                                    catch { /* ignore failures per channel */ }
+                                }
+
+                                var alertChannelId = AutobanSettingsManager.GetAlertChannel(guildId);
+                                if (alertChannelId.HasValue)
+                                {
+                                    var alertChannel = textChannel.Guild.GetTextChannel(alertChannelId.Value);
+                                    if (alertChannel != null)
+                                    {
+                                        await alertChannel.SendMessageAsync($":rotating_light: User {guildUser.Mention} was autobanned for posting in {textChannel.Mention}.\nMessage content: \n```\n{userMsg.Content}\n```", allowedMentions: AllowedMentions.None);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        await MsgWatcherAsync(msg);
+                    }
                 }
                 catch (Exception e)
                 {
                     Logger.Log($"Failed to handle message {msg.GetJumpUrl()}\n{e}");
-                    return Task.CompletedTask;
                 }
             };
 
@@ -309,8 +357,8 @@ namespace CHEF.Components.Watcher
 
                 if (!isDM && textsToProcess.Count >= 1)
                 {
-                    if (_LastLogCheckTime.TryGetValue(msg.Author.Id, out var lastCheckTime) && 
-                        DateTime.UtcNow - lastCheckTime < TimeSpan.FromMinutes(10) && 
+                    if (_LastLogCheckTime.TryGetValue(msg.Author.Id, out var lastCheckTime) &&
+                        DateTime.UtcNow - lastCheckTime < TimeSpan.FromMinutes(10) &&
                         !UserIsCounselor(msg.Author as SocketGuildUser))
                     {
                         await msg.ReplyAsync($"Please avoid rapidly posting log files in the help channel. You can always send me log files directly through DMs (Direct Messages) if you'd like me to analyze them.");

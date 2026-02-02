@@ -45,28 +45,7 @@ namespace CHEF.Components.Watcher
                             var guildUser = textChannel.Guild.GetUser(msg.Author.Id);
                             if (guildUser != null && !guildUser.GuildPermissions.ModerateMembers)
                             {
-                                await guildUser.BanAsync(reason: $"Autoban: Message in {textChannel.Name}");
-
-                                // Delete all messages from this user in all text channels from the last hour
-                                var now = DateTimeOffset.UtcNow;
-                                foreach (var chan in textChannel.Guild.TextChannels)
-                                {
-                                    try
-                                    {
-                                        var messages = await chan.GetMessagesAsync(limit: 100).FlattenAsync();
-                                        var toDelete = new List<IMessage>();
-                                        foreach (var m in messages)
-                                        {
-                                            if (m.Author.Id == guildUser.Id && (now - m.Timestamp).TotalMinutes <= 60)
-                                                toDelete.Add(m);
-                                        }
-                                        foreach (var m in toDelete)
-                                        {
-                                            try { await m.DeleteAsync(); } catch { /* ignore failures */ }
-                                        }
-                                    }
-                                    catch { /* ignore failures per channel */ }
-                                }
+                                await guildUser.BanAsync(reason: $"Autoban: Message in {textChannel.Name}", pruneDays: 1);
 
                                 var alertChannelId = AutobanSettingsManager.GetAlertChannel(guildId);
                                 if (alertChannelId.HasValue)

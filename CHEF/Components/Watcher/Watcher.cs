@@ -56,13 +56,13 @@ namespace CHEF.Components.Watcher
                                         await alertChannel.SendMessageAsync($":rotating_light: User {guildUser.Mention} was autobanned for posting in {textChannel.Mention}.\nMessage content: \n```\n{userMsg.Content}\n```", allowedMentions: AllowedMentions.None);
                                     }
                                 }
+
+                                return;
                             }
                         }
                     }
-                    else
-                    {
-                        await MsgWatcherAsync(msg);
-                    }
+
+                    await MsgWatcherAsync(msg);
                 }
                 catch (Exception e)
                 {

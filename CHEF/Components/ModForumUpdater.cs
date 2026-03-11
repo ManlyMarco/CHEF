@@ -88,7 +88,7 @@ namespace CHEF.Components
 
                 foreach (var channel in Client.Guilds.SelectMany(g => g.Channels)
                                               .OfType<SocketForumChannel>()
-                                              .Where(c => c.Name.Contains("mod-release")))
+                                              .Where(c => c.Name.Contains("mod-release") && !c.Name.Contains("archived")))
                 {
                     var watchedTagIds = channel.Tags
                         .Where(tag => _watchedTags.Contains(tag.Name))
@@ -122,71 +122,79 @@ namespace CHEF.Components
                         // No release links, probably only a repo link
                         if (i < 0 || mostRecentlyPostedReleaseLink.Contains("KoikatuGameplayMods")) continue;
 
-                        var latestReleseLink = mostRecentlyPostedReleaseLink.Substring(0, i) + "/releases/latest";
-                        var actualLatestReleseLink = await GetFinalRedirect(latestReleseLink);
-
-                        if (latestReleseLink.Contains("github.com/", StringComparison.OrdinalIgnoreCase))
+                        string MakeRelaseLink(string s, string org1, string repo1, string tag)
                         {
-                            var latestGoonLink = Regex.Replace(latestReleseLink, @"github\.com/", @"gitgoon.dev/", RegexOptions.IgnoreCase);
-                            var actualLatestGoonLink = await GetFinalRedirect(latestGoonLink);
-                            if (LinkPointsToReleaseTag(actualLatestGoonLink))
+                            return "https://" + s + "/" + org1 + "/" + repo1 + "/releases/" + tag;
+                        }
+
+                        async Task<(string tag, string link)> GetLatestTag(string website, string org, string repo)
+                        {
+                            var isGithub = allReleaseLinks.Any(x => x.Contains(website));
+                            if (!isGithub) return (null, null);
+
+                            var latestLink = MakeRelaseLink(website, org, repo, "latest");
+                            var actualLatestLink = await GetFinalRedirect(latestLink);
+                            if (!LinkPointsToReleaseTag(actualLatestLink))
                             {
-                                if (LinkPointsToReleaseTag(actualLatestReleseLink))
-                                {
-                                    // Figure out which one is newer by comparing the tag names
-                                    // Example link: https://gitgoon.dev/IllusionMods/Ahegao/releases/tag/v2.0.0.1
-                                    var githubTag = Regex.Match(actualLatestReleseLink, @"/releases/tag/([\w\.\-,\d]+)$", RegexOptions.IgnoreCase);
-                                    var goonTag = Regex.Match(actualLatestGoonLink, @"/releases/tag/([\w\.\-,\d]+)$", RegexOptions.IgnoreCase);
-                                    if (githubTag.Success && goonTag.Success)
-                                    {
-                                        var githubTagName = githubTag.Groups[1].Value;
-                                        var goonTagName = goonTag.Groups[1].Value;
-                                        // Use Version class to compare version numbers
-                                        bool githubParsed = Version.TryParse(githubTagName.TrimStart('v', 'r'), out var githubVersion);
-                                        bool goonParsed = Version.TryParse(goonTagName.TrimStart('v', 'r'), out var goonVersion);
+                                await Log($"[ModForumUpdater] Failed to get redirect for <{latestLink}>");
+                                return (null, null);
+                            }
 
-                                        // Handle tags that are just a single number (e.g., "2")
-                                        if (!githubParsed && int.TryParse(githubTagName.TrimStart('v', 'r'), out var githubInt))
-                                        {
-                                            githubVersion = new Version(githubInt, 0);
-                                            githubParsed = true;
-                                        }
-                                        if (!goonParsed && int.TryParse(goonTagName.TrimStart('v', 'r'), out var goonInt))
-                                        {
-                                            goonVersion = new Version(goonInt, 0);
-                                            goonParsed = true;
-                                        }
+                            var match = Regex.Match(actualLatestLink, @"/releases/tag/([\w\.\-,\d]+)$", RegexOptions.IgnoreCase);
+                            var latestTag = match.Success ? match.Groups[1].Value : null;
+                            if (string.IsNullOrWhiteSpace(latestTag))
+                                return (null, null);
 
-                                        if (githubParsed && goonParsed)
-                                        {
-                                            actualLatestReleseLink = githubVersion > goonVersion ? actualLatestReleseLink : actualLatestGoonLink;
-                                        }
-                                        else
-                                        {
-                                            // Fallback to string comparison if version parsing fails (works for repos using date)
-                                            actualLatestReleseLink = string.Compare(githubTagName, goonTagName, StringComparison.OrdinalIgnoreCase) >= 0
-                                                ? actualLatestReleseLink
-                                                : actualLatestGoonLink;
-                                        }
-                                    }
-                                }
-                                else
-                                    actualLatestReleseLink = actualLatestGoonLink;
+                            return (latestTag, actualLatestLink);
+                        }
+
+                        // string[6] { "github.com", "IllusionMods", "KKManager", "releases", "tag", "v1.8" }
+                        var linkParts = mostRecentlyPostedReleaseLink.Replace("http://", "").Replace("https://", "").Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+
+                        var latestGithubTag = await GetLatestTag("github.com", linkParts[1], linkParts[2]);
+                        var latestGitgoonTag = await GetLatestTag("gitgoon.dev", linkParts[1], linkParts[2]);
+
+                        if (latestGithubTag.link == null && latestGitgoonTag.link == null)
+                            continue;
+
+                        static (string tag, string link) ChooseLatestLink((string tag, string link) tag1, (string tag, string link) tag2)
+                        {
+                            if (tag1.link == null)
+                                return tag2;
+
+                            if (tag2.link == null)
+                                return tag1;
+
+                            // If both links are present, compare which one is newer and pick that one
+
+                            // Attempt a proper version comparison first, but fall back to string comparison if the tags aren't in a standard format (e.g., date-based tags)
+                            var ghTrim = tag1.tag.Trim(' ', '\'', '"', '\r', '\n').TrimStart('v', 'r');
+                            if (!ghTrim.Contains('.')) ghTrim += ".0"; // Append .0 to single number tags to make them parseable as versions
+                            var ggTrim = tag2.tag.Trim(' ', '\'', '"', '\r', '\n').TrimStart('v', 'r');
+                            if (!ggTrim.Contains('.')) ggTrim += ".0";
+
+                            if (Version.TryParse(ghTrim, out var githubVersion) &&
+                                Version.TryParse(ggTrim, out var goonVersion))
+                            {
+                                return githubVersion >= goonVersion ? tag1 : tag2;
+                            }
+                            else
+                            {
+                                // Fallback to string comparison if version parsing fails (works for repos using date)
+                                return string.Compare(tag1.tag, tag2.tag, StringComparison.OrdinalIgnoreCase) >= 0
+                                    ? tag1
+                                    : tag2;
                             }
                         }
 
-                        if (!LinkPointsToReleaseTag(actualLatestReleseLink))
+                        var actualLatestLink = ChooseLatestLink(latestGithubTag, latestGitgoonTag);
+
+                        if (!string.IsNullOrEmpty(actualLatestLink.link) &&
+                            // Make sure it's not already posted
+                            !allReleaseLinks.Any(x => x.EndsWith("/" + actualLatestLink.tag, StringComparison.OrdinalIgnoreCase)))
                         {
-                            await Log($"[ModForumUpdater] Failed to get redirect for <{actualLatestReleseLink}>");
-                        }
-                        else
-                        {
-                            var alreadyPosted = allReleaseLinks.Any(x => string.Equals(x, actualLatestReleseLink, StringComparison.OrdinalIgnoreCase));
-                            if (!alreadyPosted)
-                            {
-                                await Log($"[ModForumUpdater] Posting new release link in thread [{thread.Name}] -> <{actualLatestReleseLink}>");
-                                await thread.SendMessageAsync(actualLatestReleseLink);
-                            }
+                            await Log($"[ModForumUpdater] Posting new release link in thread [{thread.Name}] -> <{actualLatestLink.link}>");
+                            await thread.SendMessageAsync(actualLatestLink.link);
                         }
                     }
                 }

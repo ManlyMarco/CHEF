@@ -2,18 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
-using System.Threading.Tasks;
-using Discord;
-using Discord.Interactions;
-using Discord.WebSocket;
 
-namespace CHEF.Commands;
-
-public class AutobanSettings
-{
-    public Dictionary<ulong, List<ulong>> GuildAutobanChannels { get; set; } = new(); // guildId -> list of channelIds
-    public Dictionary<ulong, ulong> GuildAlertChannels { get; set; } = new(); // guildId -> alertChannelId
-}
+namespace CHEF.Components.Autoban;
 
 public static class AutobanSettingsManager
 {
@@ -86,26 +76,10 @@ public static class AutobanSettingsManager
         _settings.GuildAlertChannels[guildId] = channelId;
         Save();
     }
-}
 
-public class AutobanCommands : InteractionModuleBase<SocketInteractionContext>
-{
-    [SlashCommand("autoban-set-ban-channel", "Enable or disable autoban for a channel.")]
-    [CommandContextType(InteractionContextType.Guild), RequireContext(ContextType.Guild)]
-    [DefaultMemberPermissions(GuildPermission.BanMembers), RequireUserPermission(GuildPermission.BanMembers)]
-    public async Task SetAutobanChannel([Summary(description: "Channel to autoban in.")] ITextChannel channel,
-                                        [Summary(description: "Enable autoban.")] bool enable)
+    public static IReadOnlyList<ulong> GetAutobanChannels(ulong guildId)
     {
-        AutobanSettingsManager.SetAutobanChannel(Context.Guild.Id, channel.Id, enable);
-        await RespondAsync($":white_check_mark: Autoban has been {(enable ? "enabled" : "disabled")} for {channel.Mention}", ephemeral: true);
-    }
-
-    [SlashCommand("autoban-set-alert-channel", "Set the channel for autoban alerts.")]
-    [CommandContextType(InteractionContextType.Guild), RequireContext(ContextType.Guild)]
-    [DefaultMemberPermissions(GuildPermission.BanMembers), RequireUserPermission(GuildPermission.BanMembers)]
-    public async Task SetAutobanAlertChannel([Summary(description: "Channel for ban alerts.")] ITextChannel channel)
-    {
-        AutobanSettingsManager.SetAlertChannel(Context.Guild.Id, channel.Id);
-        await RespondAsync($":white_check_mark: Autoban alert channel set to {channel.Mention}", ephemeral: true);
+        _settings.GuildAutobanChannels.TryGetValue(guildId, out var result);
+        return result;
     }
 }

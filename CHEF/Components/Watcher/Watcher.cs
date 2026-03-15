@@ -6,7 +6,6 @@ using System.Net.Http;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using CHEF.Commands;
 using CHEF.Extensions;
 using Discord;
 using Discord.WebSocket;
@@ -35,38 +34,11 @@ namespace CHEF.Components.Watcher
             {
                 try
                 {
-                    // Autoban logic TODO: move out of here
-                    if (msg is SocketUserMessage userMsg && msg.Channel is SocketTextChannel textChannel && !msg.Author.IsBot && !msg.Author.IsWebhook)
-                    {
-                        var guildId = textChannel.Guild.Id;
-                        var channelId = textChannel.Id;
-                        if (AutobanSettingsManager.IsAutobanEnabled(guildId, channelId))
-                        {
-                            var guildUser = textChannel.Guild.GetUser(msg.Author.Id);
-                            if (guildUser != null && !guildUser.GuildPermissions.ModerateMembers)
-                            {
-                                await guildUser.BanAsync(reason: $"Autoban: Message in {textChannel.Name}", pruneDays: 1);
-
-                                var alertChannelId = AutobanSettingsManager.GetAlertChannel(guildId);
-                                if (alertChannelId.HasValue)
-                                {
-                                    var alertChannel = textChannel.Guild.GetTextChannel(alertChannelId.Value);
-                                    if (alertChannel != null)
-                                    {
-                                        await alertChannel.SendMessageAsync($":rotating_light: User {guildUser.Mention} was autobanned for posting in {textChannel.Mention}.\nMessage content: \n```\n{userMsg.Content}\n```", allowedMentions: AllowedMentions.None);
-                                    }
-                                }
-
-                                return;
-                            }
-                        }
-                    }
-
                     await MsgWatcherAsync(msg);
                 }
                 catch (Exception e)
                 {
-                    Logger.Log($"Failed to handle message {msg.GetJumpUrl()}\n{e}");
+                    Logger.Log($"Watcher: Failed to handle message {msg.GetJumpUrl()}\n{e}");
                 }
             };
 

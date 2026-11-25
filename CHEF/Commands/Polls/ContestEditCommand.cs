@@ -87,7 +87,7 @@ public class ContestEditCommand : InteractionModuleBase<SocketInteractionContext
     {
         // See if there`s a poll in the channel
         if (PollDataStorage.Polls.Remove(pollName, out _))
-            await RespondAsync($":white_check_mark: Deleted the poll named `{pollName}` The stats were deleted and new messages will no longer be removed.");
+            await RespondAsync($":white_check_mark: Deleted the poll named `{pollName}` The stats were deleted.");
         else
             await RespondAsync($":x: No active or ended poll named `{pollName}` was found.");
         PollDataStorage.TriggerDataStore();

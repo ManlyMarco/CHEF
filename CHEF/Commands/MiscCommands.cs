@@ -8,6 +8,22 @@ namespace CHEF.Commands;
 
 public class MiscCommands : InteractionModuleBase<SocketInteractionContext>
 {
+    [SlashCommand("set-log-channel", "Set the channel where slash command usage logs are sent for this server.")]
+    [CommandContextType(InteractionContextType.Guild), RequireContext(ContextType.Guild)]
+    [DefaultMemberPermissions(GuildPermission.Administrator)]
+    public async Task SetLogChannel([Summary(description: "Channel to send command logs to.")] ITextChannel channel)
+    {
+        try
+        {
+            Logger.SetLogChannel(Context.Guild.Id, channel.Id);
+            await RespondAsync($":white_check_mark: Command logs will be sent to {channel.Mention}", ephemeral: true);
+        }
+        catch (Exception e)
+        {
+            await RespondAsync(":x: Failed to set log channel: " + e.Message, ephemeral: true);
+        }
+    }
+
     [SlashCommand("chika-say", "Become a skinwalker and make chika say something.")]
     [CommandContextType(InteractionContextType.Guild), RequireContext(ContextType.Guild)]
     [DefaultMemberPermissions(GuildPermission.ManageChannels), RequireUserPermission(GuildPermission.ViewChannel)]
